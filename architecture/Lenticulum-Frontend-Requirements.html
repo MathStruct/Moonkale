@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Lenticulum frontend — requirements</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Lenticulum frontend — requirements"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Lenticulum frontend — requirements"/><meta name="twitter:description" content="What Moonkale must do as the frontend for Lenticulum.jl, the reason Moonkale was started. Everything the RxInfer, ModelingToolkit and Lux libraries need, and more, derived from three use cases (a language model as a statistical logic program of functions and relations, omics factor graphs, markets with learnable factors). From Daniel, 2026-10-14."/><meta property="og:description" content="What Moonkale must do as the frontend for Lenticulum.jl, the reason Moonkale was started. Everything the RxInfer, ModelingToolkit and Lux libraries need, and more, derived from three use cases (a language model as a statistical logic program of functions and relations, omics factor graphs, markets with learnable factors). From Daniel, 2026-10-14."/><meta property="og:image:alt" content="What Moonkale must do as the frontend for Lenticulum.jl, the reason Moonkale was started. Everything the RxInfer, ModelingToolkit and Lux libraries need, and more, derived from three use cases (a language model as a statistical logic program of functions and relations, omics factor graphs, markets with learnable factors). From Daniel, 2026-10-14."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/architecture/Lenticulum-Frontend-Requirements"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/architecture/Lenticulum-Frontend-Requirements"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="What Moonkale must do as the frontend for Lenticulum.jl, the reason Moonkale was started. Everything the RxInfer, ModelingToolkit and Lux libraries need, and more, derived from three use cases (a language model as a statistical logic program of functions and relations, omics factor graphs, markets with learnable factors). From Daniel, 2026-10-14."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS8ucXVhcnR6L3F1YXJ0ei9jb21wb25lbnRzL3N0eWxlcyIsInNvdXJjZXMiOlsibWVybWFpZC5pbmxpbmUuc2NzcyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTs7O0FBS0Y7RUFDRTtFQUNBOzs7QUFJSjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFOztBQUdGO0VBQ0U7O0FBSUY7RUFDRTtFQUNBO0VBQ0EiLCJzb3VyY2VzQ29udGVudCI6WyIuZXhwYW5kLWJ1dHRvbiB7XG4gIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgZGlzcGxheTogZmxleDtcbiAgZmxvYXQ6IHJpZ2h0O1xuICBwYWRkaW5nOiAwLjRyZW07XG4gIG1hcmdpbjogMC4zcmVtO1xuICByaWdodDogMDsgLy8gTk9URTogcmlnaHQgd2lsbCBiZSBzZXQgaW4gbWVybWFpZC5pbmxpbmUudHNcbiAgY29sb3I6IHZhcigtLWdyYXkpO1xuICBib3JkZXItY29sb3I6IHZhcigtLWRhcmspO1xuICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1saWdodCk7XG4gIGJvcmRlcjogMXB4IHNvbGlkO1xuICBib3JkZXItcmFkaXVzOiA1cHg7XG4gIG9wYWNpdHk6IDA7XG4gIHRyYW5zaXRpb246IDAuMnM7XG5cbiAgJiA+IHN2ZyB7XG4gICAgZmlsbDogdmFyKC0tbGlnaHQpO1xuICAgIGZpbHRlcjogY29udHJhc3QoMC4zKTtcbiAgfVxuXG4gICY6aG92ZXIge1xuICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICBib3JkZXItY29sb3I6IHZhcigtLXNlY29uZGFyeSk7XG4gIH1cblxuICAmOmZvY3VzIHtcbiAgICBvdXRsaW5lOiAwO1xuICB9XG59XG5cbnByZSB7XG4gICY6aG92ZXIgPiAuZXhwYW5kLWJ1dHRvbiB7XG4gICAgb3BhY2l0eTogMTtcbiAgICB0cmFuc2l0aW9uOiAwLjJzO1xuICB9XG59XG5cbiNtZXJtYWlkLWNvbnRhaW5lciB7XG4gIHBvc2l0aW9uOiBmaXhlZDtcbiAgY29udGFpbjogbGF5b3V0O1xuICB6LWluZGV4OiA5OTk7XG4gIGxlZnQ6IDA7XG4gIHRvcDogMDtcbiAgd2lkdGg6IDEwMHZ3O1xuICBoZWlnaHQ6IDEwMHZoO1xuICBvdmVyZmxvdzogaGlkZGVuO1xuICBkaXNwbGF5OiBub25lO1xuICBiYWNrZHJvcC1maWx0ZXI6IGJsdXIoNHB4KTtcbiAgYmFja2dyb3VuZDogcmdiYSgwLCAwLCAwLCAwLjUpO1xuXG4gICYuYWN0aXZlIHtcbiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gIH1cblxuICAmID4gI21lcm1haWQtc3BhY2Uge1xuICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICBwb3NpdGlvbjogZml4ZWQ7XG4gICAgdG9wOiA1MCU7XG4gICAgbGVmdDogNTAlO1xuICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlKC01MCUsIC01MCUpO1xuICAgIGhlaWdodDogODB2aDtcbiAgICB3aWR0aDogODB2dztcbiAgICBvdmVyZmxvdzogaGlkZGVuO1xuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRlbnQge1xuICAgICAgcG9zaXRpb246IHJlbGF0aXZlO1xuICAgICAgdHJhbnNmb3JtLW9yaWdpbjogMCAwO1xuICAgICAgdHJhbnNpdGlvbjogdHJhbnNmb3JtIDAuMXMgZWFzZTtcbiAgICAgIG92ZXJmbG93OiB2aXNpYmxlO1xuICAgICAgbWluLWhlaWdodDogMjAwcHg7XG4gICAgICBtaW4td2lkdGg6IDIwMHB4O1xuXG4gICAgICBwcmUge1xuICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgIH1cblxuICAgICAgc3ZnIHtcbiAgICAgICAgbWF4LXdpZHRoOiBub25lO1xuICAgICAgICBoZWlnaHQ6IGF1dG87XG4gICAgICB9XG4gICAgfVxuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRyb2xzIHtcbiAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgIGJvdHRvbTogMjBweDtcbiAgICAgIHJpZ2h0OiAyMHB4O1xuICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgIGdhcDogOHB4O1xuICAgICAgcGFkZGluZzogOHB4O1xuICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgIGJvcmRlci1yYWRpdXM6IDZweDtcbiAgICAgIGJveC1zaGFkb3c6IDAgMnB4IDRweCByZ2JhKDAsIDAsIDAsIDAuMSk7XG4gICAgICB6LWluZGV4OiAyO1xuXG4gICAgICAubWVybWFpZC1jb250cm9sLWJ1dHRvbiB7XG4gICAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICAgIGFsaWduLWl0ZW1zOiBjZW50ZXI7XG4gICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB3aWR0aDogMzJweDtcbiAgICAgICAgaGVpZ2h0OiAzMnB4O1xuICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodCk7XG4gICAgICAgIGNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgICAgICAgYm9yZGVyLXJhZGl1czogNHB4O1xuICAgICAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgICAgIGZvbnQtc2l6ZTogMTZweDtcbiAgICAgICAgZm9udC1mYW1pbHk6IHZhcigtLWJvZHlGb250KTtcbiAgICAgICAgdHJhbnNpdGlvbjogYWxsIDAuMnMgZWFzZTtcblxuICAgICAgICAmOmhvdmVyIHtcbiAgICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICB9XG5cbiAgICAgICAgJjphY3RpdmUge1xuICAgICAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgxcHgpO1xuICAgICAgICB9XG5cbiAgICAgICAgLy8gU3R5bGUgdGhlIHJlc2V0IGJ1dHRvbiBkaWZmZXJlbnRseVxuICAgICAgICAmOm50aC1jaGlsZCgyKSB7XG4gICAgICAgICAgd2lkdGg6IGF1dG87XG4gICAgICAgICAgcGFkZGluZzogMCAxMnB4O1xuICAgICAgICAgIGZvbnQtc2l6ZTogMTRweDtcbiAgICAgICAgfVxuICAgICAgfVxuICAgIH1cbiAgfVxufVxuIl19 */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="architecture/Lenticulum-Frontend-Requirements"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-60"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-60" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../architecture/">architecture</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Lenticulum frontend — requirements</a></div></nav><h1 class="article-title">Lenticulum frontend — requirements</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-14T14:40:51.000Z">Oct 14, 2026</time><span>9 min read</span></p><ul class="tags"><li><a href="../tags/architecture" class="internal tag-link">architecture</a></li><li><a href="../tags/julia" class="internal tag-link">julia</a></li><li><a href="../tags/lenticulum" class="internal tag-link">lenticulum</a></li><li><a href="../tags/requirements" class="internal tag-link">requirements</a></li><li><a href="../tags/factor-graphs" class="internal tag-link">factor-graphs</a></li></ul></div></div><article class="popover-hint"><p><strong>From Daniel (2026-10-14):</strong> Lenticulum.jl (MathStruct) was, for him personally, the reason to start Moonkale. Its requirements include everything RxInfer, ModelingToolkit and Lux need, and more. Moonkale is meant to be its frontend. Imagine what one might build with it:</p>
+<ul>
+<li><strong>huge graphs of the inner workings of LLMs,</strong> by composing diffusion language models and compiled functions;</li>
+<li><strong>huge graphs for calculating with omics data,</strong> where factors are the actual behaviour of proteins, reagents, etc.;</li>
+<li><strong>huge graphs of market interactions</strong> with learnable factors.</li>
+</ul>
+<p>What exists today: the flow editor with typed ports, undirected pins, subflows and the bipartite rule (ADR-0020 to 0022), symbols and captions (ADR-0024), and three libraries in moonkale-julia (Lux, ModelingToolkit, RxInfer) that generate code. Stage C of ADR-0022 (a subsystem as one factor) and Lenticulum’s edge directions are open. <a href="../architecture/Julia-and-Lenticulum" class="internal alias" data-slug="architecture/Julia-and-Lenticulum">Julia and Lenticulum</a> has the earlier plan (a live graph source, <code>Moonkale.jl</code>). This page is the requirement set it is measured against.</p>
+<h2 id="the-three-use-cases-and-what-each-forces">The three use cases, and what each forces<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-three-use-cases-and-what-each-forces" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Use case</th><th>Forces</th></tr></thead><tbody><tr><td><strong>A language model as a statistical logic program</strong> (corrected 2026-10-14, see below): functions and relations compose the model, <strong>not a transformer</strong></td><td><strong>relations and rules as first-class nodes</strong>, with weights; the <strong>lifted program</strong> drawn once and its <strong>groundings</strong> expanded on demand (the same mechanism as plates); <strong>derivations as proof graphs</strong> with their probabilities (“why did it answer this?”); learnable rule weights; compiled functions as factors whose insides open on demand; denoising or inference steps as a time axis</td></tr><tr><td><strong>Omics:</strong> factors are protein behaviour, reagents, assays</td><td>factors that <strong>cite their biology</strong> (a UniProt id, a reaction in Reactome, a paper), so the model <strong>meets the knowledge graph</strong>; data bound from tables (measurements, batches, replicates); <strong>units and concentrations</strong> checked across wires; uncertainty everywhere; pathways imported as subgraphs</td></tr><tr><td><strong>Markets:</strong> agents and interactions with learnable factors</td><td><strong>time-unrolled</strong> factor graphs (the same slice repeated per step); <strong>learnable parameters</strong> with training runs; streaming data; <strong>scenarios and interventions</strong> (change a factor, compare outcomes) without losing the original</td></tr></tbody></table></div>
+<h2 id="the-language-model-as-a-statistical-logic-program">The language model as a statistical logic program<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-language-model-as-a-statistical-logic-program" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><strong>Correction (Daniel, 2026-10-14):</strong> the “LLM introspection” case is not about transformers. Think of a <strong>statistical Prolog</strong>, where <strong>functions and relations compose a language model</strong>. It is something new, being developed. The nearest public relatives, for vocabulary only: probabilistic logic programming (ProbLog, PRISM), Markov logic networks, neurosymbolic languages (DeepProbLog, Scallop), and weighted Datalog. None of them is the target.</p>
+<p>What that asks of the frontend:</p>
+<ul>
+<li>
+<p><strong>LT-24 Relations, rules and functions as nodes (★):</strong></p>
+<ul>
+<li>a relation (a predicate) is a node with its arity and argument types;</li>
+<li>a rule (a clause) is a factor joining its head to its body literals, carrying a weight or a distribution;</li>
+<li>a function is a factor with typed inputs and outputs.</li>
+</ul>
+<p>The bipartite shape holds: relations and their arguments are the variables, rules and functions the factors. So the flow editor’s model and roles (ADR-0022) are the starting point, not something new.</p>
+</li>
+<li>
+<p><strong>LT-25 Lifted and ground, both visible (★):</strong> the program is authored and drawn <strong>lifted</strong> (rules with logic variables, once). Its <strong>groundings</strong> (the rule instantiated for concrete constants) are generated, counted, and expanded on demand, for one query or one constant. This is LT-03’s repetition applied to logic, and what keeps a large program drawable.</p>
+</li>
+<li>
+<p><strong>LT-26 Derivations as proof graphs (★):</strong> a query’s answer comes with its <strong>derivations</strong>: which rules fired, on which facts, with what probability each, and how they combine. They are drawn as a proof DAG on the graph and kept as an annotation on the answer (<a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a> §7, proofs as annotations; the same view as the knowledge-graph studio’s “why?”, KG-16). “Why did the model produce this?” is answered by its proof, not by attention maps.</p>
+</li>
+<li>
+<p><strong>LT-27 Queries and their answers:</strong> ask a query (a goal) in the editor, get answers ranked by probability with their derivations, and compare two models or two weight sets on the same query. This uses the logic-query level of the <a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a> (§8, the Datalog dialect of WP-20).</p>
+</li>
+<li>
+<p><strong>LT-28 Learning the weights:</strong> rule weights and function parameters are learnable (LT-07), training runs are records (LT-13), and a rule’s weight is visible on it (its caption) and traced over a run (LT-12, plots).</p>
+</li>
+<li>
+<p><strong>LT-29 Composition across kinds:</strong> a relation may be defined by rules, by a compiled function, by data (a table: facts bound from a source, LT-09), or by a probabilistic factor. All four kinds compose in one program, and the editor shows which defines what.</p>
+</li>
+</ul>
+<h2 id="requirements">Requirements<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#requirements" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><code>LT-nn</code>. Several restate what RxInfer, ModelingToolkit or Lux already need. Marked (★) where Lenticulum goes beyond all three.</p>
+<h3 id="modelling">Modelling<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#modelling" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li>
+<p><strong>LT-01 Heterogeneous factors in one graph:</strong></p>
+<ul>
+<li>probabilistic (RxInfer’s distributions);</li>
+<li>physical and acausal (ModelingToolkit components);</li>
+<li>neural (Lux layers);</li>
+<li>compiled functions (any Julia function, later MLIR);</li>
+<li>data factors (observations);</li>
+<li>constraints and losses.</li>
+</ul>
+<p>One graph mixes them (★). Each library contributes kinds (<code>BlockKind</code>, roles, symbols) as today.</p>
+</li>
+<li>
+<p><strong>LT-02 Composition to any depth:</strong> a subsystem is one factor (ADR-0022 stage C), and subsystems nest. Entering one is a scope change (ADR-0021), and its boundary is its interface.</p>
+</li>
+<li>
+<p><strong>LT-03 Repetition, drawn once (★):</strong> plates, arrays of factors, layers × heads, time slices. The repeated structure is authored and drawn <strong>once, with its multiplicity</strong> (<code>× 32 layers</code>, <code>t = 1…T</code>), and one instance expands on demand. Never N copies in the document or the scene. This is what makes “huge” tractable.</p>
+</li>
+<li>
+<p><strong>LT-04 Generated graphs (★):</strong> a graph produced by Julia code (a loop, a model constructor) is viewed, navigated and inspected like an authored one. Editing it means editing the generator or overriding an instance, never silently forking the generated output.</p>
+</li>
+<li>
+<p><strong>LT-05 Typed variables:</strong></p>
+<ul>
+<li>a variable’s space is a domain: real, simplex, positive definite, categorical, a tensor of shape <code>(B, T, D)</code>;</li>
+<li>quantities carry units;</li>
+<li>a wire between incompatible spaces or units is refused with the reason, like the bipartite rule’s refusals today.</li>
+</ul>
+<p>Mycelium’s “space” (ADR-0022, not decided) gets decided here.</p>
+</li>
+<li>
+<p><strong>LT-06 Edge directions</strong> (Lenticulum’s <code>Emitting</code>, <code>Absorbing</code>, bidirectional) and per-run polarity: which variables are observed is a run’s choice, not the model’s.</p>
+</li>
+<li>
+<p><strong>LT-07 Learnable factors:</strong> a factor’s parameters carry priors or initial values, are marked learnable or fixed, and have an optimiser per run. A parameter’s current value is visible on the factor (its caption, ADR-0024 §6).</p>
+</li>
+<li>
+<p><strong>LT-08 Factors that cite (★):</strong> a factor or a variable links to knowledge nodes (a protein, a reagent lot, a paper, a market instrument) with typed edges. The model graph and the knowledge graph are one graph (<a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a> §9). Imported pathways keep their database ids.</p>
+</li>
+<li>
+<p><strong>LT-09 Data binding:</strong> an observed variable binds to a query (SQL over DuckDB or Parquet, a table, a live feed) rather than inline numbers, with its batches and replicates. The binding is part of the run configuration, not the model.</p>
+</li>
+</ul>
+<h3 id="running">Running<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#running" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li><strong>LT-10 A live run:</strong> Moonkale starts or attaches to a Julia process (local, remote, a GPU host through the server) and receives live state: beliefs on variables, messages on edges, energies or free energy on factors, losses. It draws them incrementally on the graph engine.</li>
+<li><strong>LT-11 Schedules as overlays:</strong> a message-passing schedule is shown as an overlay on the graph (order, sweeps), not as nodes. It is authored as a small separate DAG or as annotations (open question, <a href="../architecture/Julia-and-Lenticulum" class="internal alias" data-slug="architecture/Julia-and-Lenticulum">Julia and Lenticulum</a>).</li>
+<li><strong>LT-12 Time:</strong> scrub a run along its schedule steps, training epochs, denoising steps or market time. The graph shows state at the scrubbed time, and plots (LT-17) follow the same cursor.</li>
+<li><strong>LT-13 Runs are records:</strong> each run keeps its model version (a content hash), parameters, data binding, environment (<code>Manifest.toml</code>), seed and outputs. Two runs compare side by side: belief differences on the graph, metrics in plots.</li>
+<li><strong>LT-14 Interventions and scenarios (★):</strong> clamp a variable, replace a factor, change a parameter, on a <strong>scenario copy</strong> that remembers what it was derived from. Then compare. The <code>do</code>-operator for markets and omics is one edit away.</li>
+<li><strong>LT-15 Checkpoints:</strong> learned parameters are saved per run, and loading a checkpoint fills the factors’ captions.</li>
+</ul>
+<h3 id="seeing-it-at-scale">Seeing it at scale<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#seeing-it-at-scale" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li><strong>LT-16 Millions of nodes:</strong> the coarse tier (<a href="../editors/Case-Selector" class="internal alias" data-slug="editors/Case-Selector">Case Selector</a>, WP-06), aggregation by subsystem and plate (LT-03), level of detail, search and filter by kind, a focus with context. Belief uncertainty is shown as a heat or size on nodes, not as text.</li>
+<li><strong>LT-17 Plots beside the graph:</strong> loss curves, posterior marginals, time series per variable, and calibration, linked to the graph (select a variable, see its marginal). See <a href="../research/Plotting-Requirements" class="internal alias" data-slug="research/Plotting-Requirements">Plotting Requirements</a>.</li>
+<li><strong>LT-18 Inside a compiled factor:</strong> open a compiled function as its IR or MLIR graph (<a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a> §3), with provenance back to the source.</li>
+</ul>
+<h3 id="debugging-the-model">Debugging the model<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#debugging-the-model" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li><strong>LT-19 Message debugger (★):</strong> step a schedule one message at a time, break on a factor or a condition (a NaN, a belief variance below a threshold, a message that stopped changing), inspect a message’s parameters, and see where a divergence first appeared, highlighted on the graph. See <a href="../research/Debugger-Requirements" class="internal alias" data-slug="research/Debugger-Requirements">Debugger Requirements</a>: this is a debugger, but for a model, not for code.</li>
+<li><strong>LT-20 Structural checks before running:</strong> bipartite rule, spaces and units, dimensions, unconnected required channels, cycles where a schedule needs a DAG. These are reported like today’s <code>validate</code> issues, with the same wording in the panel and in files.</li>
+</ul>
+<h3 id="files-versions-interop">Files, versions, interop<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#files-versions-interop" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<ul>
+<li><strong>LT-21 The model is a document:</strong> a text form for git and agents, never the UI (ADR-0012). Content-addressed versions, so a run names exactly the model it ran.</li>
+<li><strong>LT-22 Import and export:</strong> RxInfer <code>@model</code>, ModelingToolkit systems and Lux chains import as subgraphs; Lenticulum code generates from the graph, the way the three libraries do today. Round-trips are tested golden-file style.</li>
+<li><strong>LT-23 Agents:</strong> an agent can build, check, run and explain a model through tools (the same operations as the UI), under the policy gate.</li>
+</ul>
+<h2 id="what-exists-what-is-missing">What exists, what is missing<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#what-exists-what-is-missing" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Need</th><th>Today</th><th>Missing</th></tr></thead><tbody><tr><td>Kinds, roles, ports, symbols, codegen</td><td>flow editor + 3 libraries</td><td>Lenticulum’s library; edge directions (LT-06)</td></tr><tr><td>Composition</td><td>subflows, flattening (ADR-0021)</td><td>subsystem-as-factor (ADR-0022 C)</td></tr><tr><td>Repetition (LT-03)</td><td>—</td><td>plates in the flow model and the engine</td></tr><tr><td>Typed spaces and units (LT-05)</td><td>domain-typed pins (<code>PortType::Named</code>)</td><td>spaces, shapes, units, and refusal by type</td></tr><tr><td>Live runs (LT-10 to 15)</td><td>—</td><td><code>Moonkale.jl</code>, the live source, run records</td></tr><tr><td>Scale (LT-16)</td><td>100 k nodes in the engine</td><td>coarse tier, aggregation</td></tr><tr><td>Plots (LT-17)</td><td>—</td><td>a plot extension (<a href="../research/Plotting-Requirements" class="internal alias" data-slug="research/Plotting-Requirements">Plotting Requirements</a>)</td></tr><tr><td>Message debugger (LT-19)</td><td>—</td><td>schedule stepping, conditions, history</td></tr><tr><td>Knowledge links (LT-08)</td><td>wiki-links, sources, the index</td><td>typed links from flow blocks to nodes</td></tr><tr><td>Statistical logic programs (LT-24 to 29)</td><td>bipartite roles, subflows, captions</td><td>relation and rule kinds; lifted/ground expansion; derivation graphs; a query box over a running program</td></tr></tbody></table></div>
+<h2 id="order-proposal">Order (proposal)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#order-proposal" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Each step is useful on its own:</p>
+<ol>
+<li>ADR-0022 stage C (WP-08).</li>
+<li>Plates (LT-03) and typed spaces (LT-05) in the flow model: they decide the document format, so they come before any live work.</li>
+<li><code>Moonkale.jl</code> and a live run of an RxInfer model (LT-10, LT-12), drawn on today’s engine.</li>
+<li>Plots linked to the graph (LT-17).</li>
+<li>The message debugger (LT-19).</li>
+<li>The Lenticulum library itself, with edge directions (WP-09).</li>
+<li>Scale: the coarse tier and aggregation (WP-06).</li>
+<li>Knowledge links and data binding (LT-08, LT-09), interventions (LT-14).</li>
+</ol>
+<p>Work packages WP-37 (plates and typed spaces) and WP-38 (live runs) in <a href="../problems/Work-Packages" class="internal alias" data-slug="problems/Work-Packages">Work Packages</a>; WP-08, WP-09, WP-06 and WP-10 already cover the rest.</p></article><hr/><div class="page-footer"><div class="giscus" data-repo="MathStruct/Moonkale" data-repo-id="R_kgDOUeDr7g" data-category="Announcements" data-category-id="DIC_kwDOUeDr7s4DJXDC" data-mapping="pathname" data-strict="1" data-reactions-enabled="1" data-input-position="bottom" data-light-theme="light" data-dark-theme="dark" data-theme-url="https://mathstruct.org/Moonkale/static/giscus" data-lang="en"></div></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-23" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#the-three-use-cases-and-what-each-forces" data-for="the-three-use-cases-and-what-each-forces">The three use cases, and what each forces</a></li><li class="depth-0"><a href="#the-language-model-as-a-statistical-logic-program" data-for="the-language-model-as-a-statistical-logic-program">The language model as a statistical logic program</a></li><li class="depth-0"><a href="#requirements" data-for="requirements">Requirements</a></li><li class="depth-1"><a href="#modelling" data-for="modelling">Modelling</a></li><li class="depth-1"><a href="#running" data-for="running">Running</a></li><li class="depth-1"><a href="#seeing-it-at-scale" data-for="seeing-it-at-scale">Seeing it at scale</a></li><li class="depth-1"><a href="#debugging-the-model" data-for="debugging-the-model">Debugging the model</a></li><li class="depth-1"><a href="#files-versions-interop" data-for="files-versions-interop">Files, versions, interop</a></li><li class="depth-0"><a href="#what-exists-what-is-missing" data-for="what-exists-what-is-missing">What exists, what is missing</a></li><li class="depth-0"><a href="#order-proposal" data-for="order-proposal">Order (proposal)</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../architecture/Core-and-Extensions" class="internal">Core and extensions — a discussion</a></li><li><a href="../architecture/Julia-and-Lenticulum" class="internal">Julia and Lenticulum.jl — the goal behind Moonkale</a></li><li><a href="../architecture/North-Star" class="internal">North Star — the code graph</a></li><li><a href="../editors/Linked-Panels" class="internal">Linked panels — a node's content and its context, together and marked as belonging together</a></li><li><a href="../research/Debugger-Requirements" class="internal">Debugger — requirements and fit for Moonkale</a></li><li><a href="../research/Plotting-Requirements" class="internal">Plotting — requirements from Plots.jl and Makie up to Tableau</a></li><li><a href="../research/Trading-with-Databento" class="internal">Trading with Databento — requirements for an editor</a></li><li><a href="../research/Use-Cases" class="internal">Use cases — a collection</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>

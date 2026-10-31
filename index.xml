@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+    <channel>
+      <title>Moonkale</title>
+      <link>https://mathstruct.org/Moonkale</link>
+      <description>Last 10 notes on Moonkale</description>
+      <generator>Quartz -- quartz.jzhao.xyz</generator>
+      <item>
+    <title>Status</title>
+    <link>https://mathstruct.org/Moonkale/Status</link>
+    <guid>https://mathstruct.org/Moonkale/Status</guid>
+    <description><![CDATA[ What Moonkale can do today, area by area — built, partly built, designed only — checked against the code on 2026-10-01 (after Milestone 17), with the open problems that matter most. The one place where status is kept. ]]></description>
+    <pubDate>Sat, 31 Oct 2026 09:50:22 GMT</pubDate>
+  </item><item>
+    <title>Security — the trust model and the security document</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Security</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Security</guid>
+    <description><![CDATA[ Who and what Moonkale trusts on each platform, and the skeleton of the project's security document. It covers secrets, connections, prompt injection, untrusted content and exploits, extensions, the supply chain and data at rest, plus the rules every change follows so security issues don't pile up. What is enforced where today, and the open findings. ]]></description>
+    <pubDate>Sat, 31 Oct 2026 09:50:22 GMT</pubDate>
+  </item><item>
+    <title>Table Editor</title>
+    <link>https://mathstruct.org/Moonkale/editors/Table-Editor</link>
+    <guid>https://mathstruct.org/Moonkale/editors/Table-Editor</guid>
+    <description><![CDATA[ Crate: editors/table. Fully Rust/Dioxus — no JS dependency. ]]></description>
+    <pubDate>Sat, 31 Oct 2026 09:50:22 GMT</pubDate>
+  </item><item>
+    <title>Extension catalogue — current, planned, core or separate</title>
+    <link>https://mathstruct.org/Moonkale/extensions/Extension-Catalogue</link>
+    <guid>https://mathstruct.org/Moonkale/extensions/Extension-Catalogue</guid>
+    <description><![CDATA[ Every extension Moonkale has and every one it plans, with tier, crate, platform fit (desktop / web / mobile), what each needs from outside (server, binary, network), what should stay core and what belongs in a separate repository — and a critique of how much of the core could become extensions. ]]></description>
+    <pubDate>Sat, 31 Oct 2026 09:50:22 GMT</pubDate>
+  </item><item>
+    <title>Work Packages</title>
+    <link>https://mathstruct.org/Moonkale/problems/Work-Packages</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Work-Packages</guid>
+    <description><![CDATA[ The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup. ]]></description>
+    <pubDate>Sat, 31 Oct 2026 09:50:22 GMT</pubDate>
+  </item><item>
+    <title>Plotting — requirements from Plots.jl and Makie up to Tableau</title>
+    <link>https://mathstruct.org/Moonkale/research/Plotting-Requirements</link>
+    <guid>https://mathstruct.org/Moonkale/research/Plotting-Requirements</guid>
+    <description><![CDATA[ Quick-look plotting in Moonkale. What plotting users need at three levels (a quick plot like Plots.jl, a publication or interactive figure like Makie, a dashboard like Tableau), what fits Moonkale, and a proposal for a Rust plot extension linked to tables, queries, the graph and live runs. Study of 2026-10-14; WP-40 quick-look implementation of 2026-10-30, done 2026-10-31. ]]></description>
+    <pubDate>Sat, 31 Oct 2026 09:50:22 GMT</pubDate>
+  </item><item>
+    <title>Linked panels — a node&#039;s content and its context, together and marked as belonging together</title>
+    <link>https://mathstruct.org/Moonkale/editors/Linked-Panels</link>
+    <guid>https://mathstruct.org/Moonkale/editors/Linked-Panels</guid>
+    <description><![CDATA[ Panels that belong together (a node's content and the local graph around it, its backlinks, its rows, its plot) form a link group. They follow one subject, stay in sync, and are visibly marked (a shared tab colour plus a marker, never colour alone). Requested 2026-10-14; the plan, decided defaults, and the implementation steps. ]]></description>
+    <pubDate>Fri, 30 Oct 2026 19:25:04 GMT</pubDate>
+  </item><item>
+    <title>Overview — every open tab at a glance, then switch</title>
+    <link>https://mathstruct.org/Moonkale/editors/Overview</link>
+    <guid>https://mathstruct.org/Moonkale/editors/Overview</guid>
+    <description><![CDATA[ A GNOME-Activities-like overview for Moonkale. One shortcut zooms out to every open tab across tiles and windows, each shown as a live-looking preview of its content (a schematic, not a screenshot), grouped by link group and window, with type-to-search that also reaches quick open. Requested 2026-10-14; the plan with decided defaults. ]]></description>
+    <pubDate>Fri, 30 Oct 2026 19:25:04 GMT</pubDate>
+  </item><item>
+    <title>P-242 — Sharing announcement test outruns remote position</title>
+    <link>https://mathstruct.org/Moonkale/problems/P-242-Sharing-announcement-test-outruns-remote-position</link>
+    <guid>https://mathstruct.org/Moonkale/problems/P-242-Sharing-announcement-test-outruns-remote-position</guid>
+    <description><![CDATA[ Status: resolved · Related: Shared Work, Agents in the UI and on the Graph Problem CI’s sharing suite timed out in an unlabelled waitForFunction, with Alpha.md selected. ]]></description>
+    <pubDate>Fri, 30 Oct 2026 19:24:47 GMT</pubDate>
+  </item><item>
+    <title>Problem Log</title>
+    <link>https://mathstruct.org/Moonkale/problems/Problem-Log</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Problem-Log</guid>
+    <description><![CDATA[ Running log of problems hit during implementation, P-nnn, sorted by number. ]]></description>
+    <pubDate>Fri, 30 Oct 2026 19:24:47 GMT</pubDate>
+  </item>
+    </channel>
+  </rss>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Graph View</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Graph View"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Graph View"/><meta name="twitter:description" content="Crate: editors/graph."/><meta property="og:description" content="Crate: editors/graph."/><meta property="og:image:alt" content="Crate: editors/graph."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/editors/Graph-View"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/editors/Graph-View"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="Crate: editors/graph."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS8ucXVhcnR6L3F1YXJ0ei9jb21wb25lbnRzL3N0eWxlcyIsInNvdXJjZXMiOlsibWVybWFpZC5pbmxpbmUuc2NzcyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTs7O0FBS0Y7RUFDRTtFQUNBOzs7QUFJSjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFOztBQUdGO0VBQ0U7O0FBSUY7RUFDRTtFQUNBO0VBQ0EiLCJzb3VyY2VzQ29udGVudCI6WyIuZXhwYW5kLWJ1dHRvbiB7XG4gIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgZGlzcGxheTogZmxleDtcbiAgZmxvYXQ6IHJpZ2h0O1xuICBwYWRkaW5nOiAwLjRyZW07XG4gIG1hcmdpbjogMC4zcmVtO1xuICByaWdodDogMDsgLy8gTk9URTogcmlnaHQgd2lsbCBiZSBzZXQgaW4gbWVybWFpZC5pbmxpbmUudHNcbiAgY29sb3I6IHZhcigtLWdyYXkpO1xuICBib3JkZXItY29sb3I6IHZhcigtLWRhcmspO1xuICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1saWdodCk7XG4gIGJvcmRlcjogMXB4IHNvbGlkO1xuICBib3JkZXItcmFkaXVzOiA1cHg7XG4gIG9wYWNpdHk6IDA7XG4gIHRyYW5zaXRpb246IDAuMnM7XG5cbiAgJiA+IHN2ZyB7XG4gICAgZmlsbDogdmFyKC0tbGlnaHQpO1xuICAgIGZpbHRlcjogY29udHJhc3QoMC4zKTtcbiAgfVxuXG4gICY6aG92ZXIge1xuICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICBib3JkZXItY29sb3I6IHZhcigtLXNlY29uZGFyeSk7XG4gIH1cblxuICAmOmZvY3VzIHtcbiAgICBvdXRsaW5lOiAwO1xuICB9XG59XG5cbnByZSB7XG4gICY6aG92ZXIgPiAuZXhwYW5kLWJ1dHRvbiB7XG4gICAgb3BhY2l0eTogMTtcbiAgICB0cmFuc2l0aW9uOiAwLjJzO1xuICB9XG59XG5cbiNtZXJtYWlkLWNvbnRhaW5lciB7XG4gIHBvc2l0aW9uOiBmaXhlZDtcbiAgY29udGFpbjogbGF5b3V0O1xuICB6LWluZGV4OiA5OTk7XG4gIGxlZnQ6IDA7XG4gIHRvcDogMDtcbiAgd2lkdGg6IDEwMHZ3O1xuICBoZWlnaHQ6IDEwMHZoO1xuICBvdmVyZmxvdzogaGlkZGVuO1xuICBkaXNwbGF5OiBub25lO1xuICBiYWNrZHJvcC1maWx0ZXI6IGJsdXIoNHB4KTtcbiAgYmFja2dyb3VuZDogcmdiYSgwLCAwLCAwLCAwLjUpO1xuXG4gICYuYWN0aXZlIHtcbiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gIH1cblxuICAmID4gI21lcm1haWQtc3BhY2Uge1xuICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICBwb3NpdGlvbjogZml4ZWQ7XG4gICAgdG9wOiA1MCU7XG4gICAgbGVmdDogNTAlO1xuICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlKC01MCUsIC01MCUpO1xuICAgIGhlaWdodDogODB2aDtcbiAgICB3aWR0aDogODB2dztcbiAgICBvdmVyZmxvdzogaGlkZGVuO1xuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRlbnQge1xuICAgICAgcG9zaXRpb246IHJlbGF0aXZlO1xuICAgICAgdHJhbnNmb3JtLW9yaWdpbjogMCAwO1xuICAgICAgdHJhbnNpdGlvbjogdHJhbnNmb3JtIDAuMXMgZWFzZTtcbiAgICAgIG92ZXJmbG93OiB2aXNpYmxlO1xuICAgICAgbWluLWhlaWdodDogMjAwcHg7XG4gICAgICBtaW4td2lkdGg6IDIwMHB4O1xuXG4gICAgICBwcmUge1xuICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgIH1cblxuICAgICAgc3ZnIHtcbiAgICAgICAgbWF4LXdpZHRoOiBub25lO1xuICAgICAgICBoZWlnaHQ6IGF1dG87XG4gICAgICB9XG4gICAgfVxuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRyb2xzIHtcbiAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgIGJvdHRvbTogMjBweDtcbiAgICAgIHJpZ2h0OiAyMHB4O1xuICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgIGdhcDogOHB4O1xuICAgICAgcGFkZGluZzogOHB4O1xuICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgIGJvcmRlci1yYWRpdXM6IDZweDtcbiAgICAgIGJveC1zaGFkb3c6IDAgMnB4IDRweCByZ2JhKDAsIDAsIDAsIDAuMSk7XG4gICAgICB6LWluZGV4OiAyO1xuXG4gICAgICAubWVybWFpZC1jb250cm9sLWJ1dHRvbiB7XG4gICAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICAgIGFsaWduLWl0ZW1zOiBjZW50ZXI7XG4gICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB3aWR0aDogMzJweDtcbiAgICAgICAgaGVpZ2h0OiAzMnB4O1xuICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodCk7XG4gICAgICAgIGNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgICAgICAgYm9yZGVyLXJhZGl1czogNHB4O1xuICAgICAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgICAgIGZvbnQtc2l6ZTogMTZweDtcbiAgICAgICAgZm9udC1mYW1pbHk6IHZhcigtLWJvZHlGb250KTtcbiAgICAgICAgdHJhbnNpdGlvbjogYWxsIDAuMnMgZWFzZTtcblxuICAgICAgICAmOmhvdmVyIHtcbiAgICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICB9XG5cbiAgICAgICAgJjphY3RpdmUge1xuICAgICAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgxcHgpO1xuICAgICAgICB9XG5cbiAgICAgICAgLy8gU3R5bGUgdGhlIHJlc2V0IGJ1dHRvbiBkaWZmZXJlbnRseVxuICAgICAgICAmOm50aC1jaGlsZCgyKSB7XG4gICAgICAgICAgd2lkdGg6IGF1dG87XG4gICAgICAgICAgcGFkZGluZzogMCAxMnB4O1xuICAgICAgICAgIGZvbnQtc2l6ZTogMTRweDtcbiAgICAgICAgfVxuICAgICAgfVxuICAgIH1cbiAgfVxufVxuIl19 */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="editors/Graph-View"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-163"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-163" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../editors/">editors</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Graph View</a></div></nav><h1 class="article-title">Graph View</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-28T17:37:29.000Z">Oct 28, 2026</time><span>11 min read</span></p><ul class="tags"><li><a href="../tags/editor" class="internal tag-link">editor</a></li><li><a href="../tags/graph" class="internal tag-link">graph</a></li><li><a href="../tags/gpu" class="internal tag-link">gpu</a></li></ul></div></div><article class="popover-hint"><p>Crate: <code>editors/graph</code>. The requirement that shapes it: <strong>fluid at 100k+ nodes</strong> — the brief calls out that Obsidian’s graph becomes slow past a certain size. See <a href="../research/Graph-Rendering-Options" class="internal alias" data-slug="research/Graph-Rendering-Options">Graph Rendering Options</a> for the option survey and <a href="../decisions/ADR-0003-wgpu-for-graph-rendering" class="internal alias" data-slug="decisions/ADR-0003-wgpu-for-graph-rendering">ADR-0003 wgpu for graph rendering</a> for the decision.</p>
+<h2 id="pipeline">Pipeline<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#pipeline" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<pre><button class="expand-button" aria-label="Expand mermaid diagram" data-view-component="true"><svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M3.72 3.72a.75.75 0 011.06 1.06L2.56 7h10.88l-2.22-2.22a.75.75 0 011.06-1.06l3.5 3.5a.75.75 0 010 1.06l-3.5 3.5a.75.75 0 11-1.06-1.06l2.22-2.22H2.56l2.22 2.22a.75.75 0 11-1.06 1.06l-3.5-3.5a.75.75 0 010-1.06l3.5-3.5z"></path></svg></button><code class="mermaid" data-clipboard="&quot;flowchart LR\n  GV[GraphView from core] --> SC[scene: instance buffers&lt;br/>pos, colour, size, glyph; edge ends, colour, arrows]\n  SC --> LAY[layout step&lt;br/>GPU compute or CPU]\n  LAY --> SC\n  SC --> R1[edges pass&lt;br/>instanced segments]\n  SC --> R2[nodes pass&lt;br/>instanced SDF]\n  SC --> R3[labels pass&lt;br/>glyph atlas, LOD]\n  SC --> R4[pick pass&lt;br/>id buffer]\n  R1 &amp; R2 &amp; R3 --> SURF[surface]\n  R4 --> HIT[hover / click → popup, select]&quot;">flowchart LR
+  GV[GraphView from core] --> SC[scene: instance buffers&lt;br/>pos, colour, size, glyph; edge ends, colour, arrows]
+  SC --> LAY[layout step&lt;br/>GPU compute or CPU]
+  LAY --> SC
+  SC --> R1[edges pass&lt;br/>instanced segments]
+  SC --> R2[nodes pass&lt;br/>instanced SDF]
+  SC --> R3[labels pass&lt;br/>glyph atlas, LOD]
+  SC --> R4[pick pass&lt;br/>id buffer]
+  R1 &amp; R2 &amp; R3 --> SURF[surface]
+  R4 --> HIT[hover / click → popup, select]
+</code><div id="mermaid-container" role="dialog"><div id="mermaid-space"><div class="mermaid-content"></div></div></div></pre>
+<h2 id="requirements--mechanisms">Requirements → mechanisms<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#requirements--mechanisms" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Requirement (from brief)</th><th>Mechanism</th></tr></thead><tbody><tr><td>GPU-native, fluid at scale</td><td><code>wgpu</code>, instanced draws, GPU force layout (compute), LOD for labels/edges</td></tr><tr><td>Popup with node/edge content</td><td>pick buffer → <code>fetch(NodeId)</code> → popup (declarative <code>moonkale_shell::Tree</code> template from a <code>RendererContribution</code>, or custom Dioxus for static extensions)</td></tr><tr><td>Arrow colours / directions</td><td>per-edge colour + arrowhead flags in the instance buffer; colour by kind, source, property, or extension style</td></tr><tr><td>Subgraphs</td><td><code>subgraph</code> module: expand/collapse neighbourhoods (issues <code>Query::Neighbours</code>), filters, isolate selection, saved views stored as nodes</td></tr><tr><td>3D</td><td>same buffers; perspective camera; z from layout or a property (time, layer); depth-sorted edges, fog. Stereo and headsets (OpenXR, WebXR) are planned in <a href="../editors/3D-Graphs-on-Monitors-and-in-Headsets" class="internal alias" data-slug="editors/3D-Graphs-on-Monitors-and-in-Headsets">3D Graphs on Monitors and in Headsets</a></td></tr></tbody></table></div>
+<h2 id="layouts">Layouts<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#layouts" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ul>
+<li><strong>GPU force-directed</strong> (grid-binned or Barnes-Hut repulsion in compute shaders): the 100k-node path. Requires WebGPU (compute).</li>
+<li><strong>CPU force-directed</strong> (<code>fdg-sim</code> or own): WebGL2 fallback; degrades past ~10k.</li>
+<li><strong>Hierarchical</strong> (layered): call graphs, ASTs, ML models, stack traces.</li>
+<li><strong>Radial / concentric</strong>: local graph around a node. Local graphs per document, linked to their content and marked by a shared tab colour: <a href="../editors/Linked-Panels" class="internal alias" data-slug="editors/Linked-Panels">Linked Panels</a> (planned 2026-10-14).</li>
+<li>Positions are persisted per saved view; re-opening doesn’t reshuffle.</li>
+</ul>
+<h2 id="the-platform-problem-where-does-the-surface-come-from">The platform problem: where does the surface come from?<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-platform-problem-where-does-the-surface-come-from" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The renderer is written once against <code>wgpu</code>. The <strong>surface</strong> differs:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Platform</th><th>Strategy</th><th>Status</th></tr></thead><tbody><tr><td>Web</td><td><code>&lt;canvas></code> + WebGPU; WebGL2 fallback (no compute → CPU layout)</td><td>straightforward</td></tr><tr><td>Mobile webviews</td><td><code>&lt;canvas></code> + WebGL2 (WebGPU unreliable)</td><td>CPU layout only</td></tr><tr><td>Desktop <strong>webview</strong></td><td>(a) same as web <em>inside</em> the webview — WebGPU: WebView2 ✅, WKWebView ✅ (recent), WebKitGTK ⚠️ not by default; (b) native wgpu child window/overlay composited over the webview; (c) offscreen wgpu → texture stream into a canvas</td><td><strong>undecided</strong>, biggest platform risk</td></tr><tr><td>Desktop <strong>native</strong> (<code>dioxus-native</code>/Blitz, future)</td><td>direct wgpu; trivial</td><td>blocked by JS deps (<a href="../architecture/JS-Interop-Boundary" class="internal alias" data-slug="architecture/JS-Interop-Boundary">JS Interop Boundary</a>)</td></tr></tbody></table></div>
+<blockquote class="callout note" data-callout="note">
+<div class="callout-title">
+                  <div class="callout-icon"></div>
+                  <div class="callout-title-inner"><p>Milestone 8: <strong>3D</strong> is a mode of the same renderer — z per node kind (<code>layer_z</code>), a perspective camera orbiting the layout, depth-tested fogged edges, screen-space node size attenuated by depth; toggle in the toolbar. Tested in Chromium with SwiftShader (<code>graph3d.mjs</code>).</p></div>
+                  
+                </div>
+</blockquote>
+<blockquote class="callout note" data-callout="note">
+<div class="callout-title">
+                  <div class="callout-icon"></div>
+                  <div class="callout-title-inner"><p>Milestone 6: the CPU layout is Barnes–Hut (θ = 0.8) above 1 500 nodes — 100k nodes at ~170 ms/step natively, ~190 ms/step as wasm in Firefox ( <a href="../milestones/Milestone-6---Implementation-Log" class="internal alias" data-slug="milestones/Milestone-6---Implementation-Log">Milestone 6 - Implementation Log</a>) — so &quot;CPU layout only&quot; is no longer a blocker; GPU compute stays deferred.</p></div>
+                  
+                </div>
+</blockquote>
+<p>Recommendation: ship (a) with WebGL2 fallback first — it’s one code path and works <em>somewhere</em> on every platform; measure; only then consider (b) for Linux/WebKitGTK. Details and measurements go in <a href="../problems/P-001-Graph-surface-in-desktop-webview" class="internal alias" data-slug="problems/P-001-Graph-surface-in-desktop-webview">P-001 Graph surface in desktop webview</a>.</p>
+<h2 id="big-cases">Big cases<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#big-cases" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Backend chosen by measured size — see <a href="../editors/Case-Selector" class="internal alias" data-slug="editors/Case-Selector">Case Selector</a> (design).</p>
+<h2 id="interaction">Interaction<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#interaction" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Pan/zoom/orbit, click/box/lasso select, drag-to-pin, hover popup (debounced pick readback), keyboard navigation along edges, double-click → open node in its editor. Minimap.</p>
+<h2 id="styling">Styling<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#styling" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><code>NodeStyle</code>/<code>EdgeStyle</code> resolved from renderer contributions + user overrides; colour by kind / source / property / community; theme-aware (<a href="../extensions/Contribution-Points" class="internal alias" data-slug="extensions/Contribution-Points">Contribution Points</a> → theme).</p>
+<h2 id="phases">Phases<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phases" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ol>
+<li>2D, instanced nodes/edges, CPU layout, pick, popup, WebGL2 + WebGPU — ≤10k nodes.</li>
+<li>Labels with LOD, styles, subgraph ops, saved views.</li>
+<li>GPU compute layout; 100k target; desktop surface decision.</li>
+<li>3D.</li>
+</ol>
+<h2 id="spec-031--the-frontend-graph-engine-2026-10-08">Spec 031 — the frontend graph engine (2026-10-08)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#spec-031--the-frontend-graph-engine-2026-10-08" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p><a href="../specifications/031" class="internal" data-slug="specifications/031">031</a> turns this view into the <strong>one</strong> frontend graph engine — layered, port- and route-aware, shared by graph exploration and flow editing (ADR-0018). The requirements are mapped onto this crate with a staged plan in <a href="../research/Frontend-Graph-Engine-Mapping" class="internal alias" data-slug="research/Frontend-Graph-Engine-Mapping">Frontend Graph Engine Mapping</a>; implementation notes per stage live in the crate note (<code>packages/graph-render/graph-render.md</code>). Built so far:</p>
+<ul>
+<li>
+<p><strong>Stage 0 — persistent instance buffers</strong>: geometry/appearance split per pipeline, revision-gated uploads; 100 k nodes settle at 1.14 ms per drawn frame (<code>bench-draw.mjs</code>).</p>
+</li>
+<li>
+<p><strong>Stage 1 — edges and selection</strong>: <code>frame.rs</code> tessellates edges into segments (parallel fan-out, self-loop rings, dashes, widths), arrowheads for directed edges, <code>edge_at</code> picking; selection by instance id with <code>select</code> events — a plain click picks a node, then an edge, then clears; Ctrl toggles; a released drag selects nothing. <code>graph-edges.mjs</code> covers it; the shader is validated natively (naga, P-158).</p>
+</li>
+<li>
+<p><strong>Stage 2 — ports and edit mode</strong>: <code>InPort</code> on the wire format (side/offset/direction), edges anchor at their ports, ports draw in edit mode only, and a wire dragged between ports emits <code>connect</code> — the host validates and adds the edge. <code>set_interaction(&quot;explore&quot;|&quot;edit&quot;)</code> switches modes on the same renderer without touching the camera (<code>set_mode</code> stays 2D/3D). <code>graph-edit.mjs</code> covers it.</p>
+</li>
+<li>
+<p><strong>Stage 3 — layers and traces</strong>: <code>InLayer</code> (visibility + style) and <code>InTrace</code> (ordered node-id walks) on the wire format; a shared edge draws one offset stroke per visible layer, traces carry a head per hop and keep recursion order, hidden layers remove their strokes and answer no hits — never touching topology. <code>graph-layers.mjs</code> covers the blue-calls + yellow-trace acceptance.</p>
+</li>
+<li>
+<p><strong>Stage 4a — delta updates</strong>: <code>apply_delta(json)</code> next to <code>set_graph</code> — <code>add_nodes</code>/<code>remove_nodes</code>/<code>add_edges</code>/<code>remove_edges</code>, all by instance id (edge endpoints name nodes by id, an edge whose endpoint is missing waits and re-resolves on a later delta). The camera and the id-keyed selection survive; the layout warms (temperature 3) around the survivors instead of restarting. This is the host’s path for collapse/expand without re-sending the whole 100 k graph. <code>graph-delta.mjs</code> covers it.</p>
+</li>
+<li>
+<p><strong>Stage 4b — groups and LOD</strong>: <code>InGroup { members: [node ids], color, visible }</code> on the wire and in deltas (<code>add_groups</code>/<code>remove_groups</code>) — one rounded-rect hull tints each group’s region behind everything; nesting and overlapping memberships each keep their own tint. Collapse/expand is the host’s delta (members out, aggregate in, group re-sent) — the renderer never mutates topology. <code>focus(ids)</code> fits the view to a subset. LOD is zoom-driven and shader-side: ports stop drawing under 2.5 px, dashes go solid on short segments, hulls fade below 14 px. <code>graph-groups.mjs</code> covers it with hue-based pixel checks.</p>
+</li>
+<li>
+<p><strong>Stage 5 — higher-order edges</strong>: <code>InHyperedge</code> (a junction marker at the members’ centroid with spokes — presentation, never picked as edges), <code>InSimplex</code> (a filled face, fanned for more than three members), and <code>InGroup.highlight</code> (a clique: a visual membership wearing twice the tint and a bright rim) — three distinct classes over the same nodes, all carried by deltas. <code>graph-higher.mjs</code> shows them side by side.</p>
+</li>
+<li>
+<p><strong>Stage 6 — pulses</strong>: <code>InEdge.pulse_speed</code> (world units per second) moves a glow along the stroke entirely in the shader — the view redraws continuously while any edge pulses, and segments under 8 screen px stop glowing (§6). <code>graph-pulse.mjs</code> measures the motion at two speeds.</p>
+</li>
+<li>
+<p><strong>Stage 7a — the flow shapes</strong>: rect block nodes (<code>shape: &quot;rect&quot;</code>, <code>width</code>/<code>height</code> half-extents) with ports riding the sides, <code>Route::Ortho</code> step wires, <code>hier_layout</code> (longest-path columns, rows stacked, everything pinned — the flow document owns positions) and <code>node_positions()</code> to harvest them back. <code>graph-flow.mjs</code> covers it.</p>
+</li>
+<li>
+<p><strong>Stage 7b — the flow panel</strong>: <code>packages/editors/flow</code> hosts this engine instead of <code>dioxus-flow</code> (ADR-0018) — blocks as pinned rect nodes, typed ports left/right, ortho wires, <code>connect</code> validated in the panel (<code>unify</code>, one wire per input), <code>moved</code> harvested back, one HTML parameter editor for the selected block (§7), the panel refits when the scene grows beyond the fitted box. The fit now carries node rims (<code>bounds_with_rims</code>) — a block’s half-width dwarfs the fit pad and put the outer ports off the canvas. <code>flow.mjs</code> rewritten against the engine.</p>
+</li>
+<li>
+<p><strong>Stage 7c — parity closed</strong>: undo/redo (document-JSON snapshots, Ctrl+Z/Y — a field’s Ctrl+Z stays its native text undo, spec 001), the parameter editor floating beside its block (positioned from the engine’s <code>select</code>/<code>moved</code> screen reports), and the dioxus-flow remnants deleted. Engine-side: a pinned node with <code>pos</code> is the host’s to move (undo restores coordinates on the canvas), and events carry their payloads (<code>select</code>/<code>moved</code> include screen positions) because a host cannot call back into the view from inside an event — the state borrow is held.</p>
+</li>
+<li>
+<p><strong>Stage 8 — the §2 presentation gaps</strong>: a third shape (<code>shape: &quot;diamond&quot;</code> — half-extents and side ports like a rect, the lit area the inscribed rhombus), a host stroke (<code>stroke: &quot;#rrggbb&quot;</code> — a ~2 px band inside the rim; selection’s ring wins), and node icons (<code>icon</code> — a glyph on the label overlay, hovered/selected nodes only, ink contrasting the node’s fill). Hovers now patch two instance slots instead of re-uploading the whole appearance buffer (§6’s partial buffer updates — hover at 100 k: 0.97 → 0.29 ms/frame). <code>graph-shapes.mjs</code> covers it.</p>
+</li>
+<li>
+<p><strong>Stage 9 — edge labels on hover</strong>: <code>InEdge.label</code> (on the wire since stage 1) now renders — hovering a stroke (no node hovered) draws the edge’s label beside the pointer, inked in the edge’s colour; the per-move scan is gated on graphs that carry labels. Also fixed the asset pipeline (P-171): dx served the engine one build behind because the asset URL hash never recompiled — <code>build.rs</code> now keys the asset crate on the wasm’s bytes.</p>
+</li>
+<li>
+<p><strong>Stage 10 — the accessibility minimums</strong>: the overlay is keyboard-focusable (the engine sets the tabindex and focuses the canvas on click — its own pointerdown prevents the default); the arrows walk spatially (nearest node in a 45° cone), Enter selects the focused node, Escape clears, Tab stays the browser’s. The focus is id-keyed, wears a ring on the overlay and emits <code>focus { id }</code>; the panel narrates the selection and focus through an <code>aria-live</code> line. <code>graph-a11y.mjs</code> covers it.</p>
+</li>
+</ul>
+<p><code>dioxus-flow</code> is retired (ADR-0018): typed ports, auto-layout, undo, parameter editing, the Lux blocks unchanged, the broken-file guard — all on the one engine.</p>
+<h2 id="experimental-rust-structural-edits">Experimental Rust structural edits<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#experimental-rust-structural-edits" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Desktop and web builds with the default-off <code>structural-edits</code> feature offer
+<strong>Edit Rust function (experimental)</strong> for a selected Rust function definition.
+Explicit declaration-name, reference-aware same-folder rename and same-file move controls lead to an escaped,
+range-highlighted preview. Apply changes the open unsaved buffer through its
+normal undo history; it does not save. Conflicts retain the old preview beside
+current source and require recomputation and fresh function confirmation.
+Dragging continues to arrange the graph. Rename uses rust-analyzer with two-pass target preparation, complete per-file previews, coordinated keyboard/menu/review undo and separate per-file saving. Cross-source plans are refused in full. Nested
+operations, Store writes and cross-file moves are not provided. See
+<a href="../architecture/Rust-Lossless-Syntax-and-Patches" class="internal alias" data-slug="architecture/Rust-Lossless-Syntax-and-Patches">Rust Lossless Syntax and Patches</a> for limits, platform wiring and tests.</p>
+<h2 id="e-graphs-wp-07-2026-10-23">E-graphs (WP-07, 2026-10-23)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#e-graphs-wp-07-2026-10-23" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Open the Graph panel’s <strong>Paste trace</strong> dialog, paste a plain engine e-graph JSON
+snapshot, and choose <strong>Draw e-graph JSON</strong>. For an example use
+<code>packages/graph-render/fixtures/egraph.json</code>; the exact mapping is documented in
+<code>packages/graph-render/graph-render.md</code> and <a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a>. This is an in-memory
+view, not a file opener or an editable code store. <strong>Back to sources</strong> reloads
+the normal source view; the pasted snapshot is not persisted.</p>
+<p>The class picker offers per-class collapse/expand, alongside all-class controls.
+An expanded class is a group containing its anchor and equivalent operators;
+collapse keeps the class endpoint with its representative operator label.
+Child edges always address classes. The <strong>Rewrite provenance</strong> checkbox hides
+or shows rewrite edges; selecting an operator highlights the incoming rewrite
+chain, and hovering a rewrite edge shows the rule name. Selection remains
+separate from that highlight. Single-class and all-class operations keep the
+camera and restore hidden members’ positions. Snapshots are capped at 4 MiB,
+4096 nodes, 32768 edges and 4096 groups. Live producer integration remains open.</p>
+<h2 id="coarse-source-navigation-wp-06-2026-10-23">Coarse source navigation (WP-06, 2026-10-23)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#coarse-source-navigation-wp-06-2026-10-23" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>The panel chooses exact (&lt;1,500), approximate (through 100,000) or coarse
+(above 100,000) at open/Reload. Hierarchical sources answer
+<code>Query::Coarse { level, region }</code> with stable representatives, hidden member
+counts and weighted projected relations; a complete source count accompanies
+the response. Auto/Detailed/Coarse overrides are remembered per source for the
+mounted panel. Detailed still respects the 100k query cap. Non-hierarchical
+sources keep the capped detailed path and show a lower-bound count when cut.</p>
+<p>Double-click one coarse representative to open a region. Its members start
+around the representative’s world position; context nodes are pinned and the
+engine’s existing delta/group path lays out the region without fitting the
+camera again. Boundary relations use the first stable member as a proxy.
+Collapse removes members/group, reinstates the representative at its original
+position and restores boundary relations. Only one region can be open; nested
+region navigation and precise boundary membership remain future work.</p>
+<p>The hermetic <code>graph-coarse.mjs</code> host exercises the production panel with a lazy
+million-node source; native core tests separately project a fully generated
+million-node snapshot. Source-native cached cuts/layouts remain open; the
+default fallback enumerates a bounded complete snapshot (or folder metadata
+walk) for each uncached region query. See <a href="../editors/Case-Selector" class="internal alias" data-slug="editors/Case-Selector">Case Selector</a>.</p>
+<h2 id="density-and-chrome-wp-63-2026-10-28">Density and chrome (WP-63, 2026-10-28)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#density-and-chrome-wp-63-2026-10-28" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Simple uses a flat ⋯ menu for graph modes, source/filter/tier controls, trace/e-graph loading and 3D; Fit is primary when graph chrome is accepted. Detailed exposes the same controls inline. Graph counts and live selection text remain visible beside the actions.</p></article><hr/><div class="page-footer"><div class="giscus" data-repo="MathStruct/Moonkale" data-repo-id="R_kgDOUeDr7g" data-category="Announcements" data-category-id="DIC_kwDOUeDr7s4DJXDC" data-mapping="pathname" data-strict="1" data-reactions-enabled="1" data-input-position="bottom" data-light-theme="light" data-dark-theme="dark" data-theme-url="https://mathstruct.org/Moonkale/static/giscus" data-lang="en"></div></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-74" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#pipeline" data-for="pipeline">Pipeline</a></li><li class="depth-0"><a href="#requirements--mechanisms" data-for="requirements--mechanisms">Requirements → mechanisms</a></li><li class="depth-0"><a href="#layouts" data-for="layouts">Layouts</a></li><li class="depth-0"><a href="#the-platform-problem-where-does-the-surface-come-from" data-for="the-platform-problem-where-does-the-surface-come-from">The platform problem: where does the surface come from?</a></li><li class="depth-0"><a href="#big-cases" data-for="big-cases">Big cases</a></li><li class="depth-0"><a href="#interaction" data-for="interaction">Interaction</a></li><li class="depth-0"><a href="#styling" data-for="styling">Styling</a></li><li class="depth-0"><a href="#phases" data-for="phases">Phases</a></li><li class="depth-0"><a href="#spec-031--the-frontend-graph-engine-2026-10-08" data-for="spec-031--the-frontend-graph-engine-2026-10-08">Spec 031 — the frontend graph engine (2026-10-08)</a></li><li class="depth-0"><a href="#experimental-rust-structural-edits" data-for="experimental-rust-structural-edits">Experimental Rust structural edits</a></li><li class="depth-0"><a href="#e-graphs-wp-07-2026-10-23" data-for="e-graphs-wp-07-2026-10-23">E-graphs (WP-07, 2026-10-23)</a></li><li class="depth-0"><a href="#coarse-source-navigation-wp-06-2026-10-23" data-for="coarse-source-navigation-wp-06-2026-10-23">Coarse source navigation (WP-06, 2026-10-23)</a></li><li class="depth-0"><a href="#density-and-chrome-wp-63-2026-10-28" data-for="density-and-chrome-wp-63-2026-10-28">Density and chrome (WP-63, 2026-10-28)</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../Home" class="internal">Moonkale — Vault Home</a></li><li><a href="../Status" class="internal">Status</a></li><li><a href="../architecture/Collaboration" class="internal">Collaboration</a></li><li><a href="../architecture/Graph-Native-Model" class="internal">Graph-Native Model</a></li><li><a href="../architecture/Indexing" class="internal">Indexing</a></li><li><a href="../architecture/JS-Interop-Boundary" class="internal">JS Interop Boundary</a></li><li><a href="../architecture/Julia-and-Lenticulum" class="internal">Julia and Lenticulum.jl — the goal behind Moonkale</a></li><li><a href="../architecture/Platform-Matrix" class="internal">Platform Matrix</a></li><li><a href="../architecture/Version-Management" class="internal">Version Management</a></li><li><a href="../editors/Case-Selector" class="internal">Case selector — the right backend for the size at hand</a></li><li><a href="../editors/Code-Editor" class="internal">Code Editor</a></li><li><a href="../editors/Flow-Editor" class="internal">Flow Editor</a></li><li><a href="../editors/Markdown-and-Typst-Editor" class="internal">Markdown and Typst Editor</a></li><li><a href="../editors/Terminal" class="internal">Terminal</a></li><li><a href="../extensions/Example---Data-Source" class="internal">Example — Data Source</a></li><li><a href="../" class="internal">Moonkale</a></li><li><a href="../milestones/Milestone-16---Sources-Follow-the-Disk" class="internal">Milestone 16 — Sources follow the disk: the plan</a></li><li><a href="../problems/P-001-Graph-surface-in-desktop-webview" class="internal">P-001 — Graph surface in the desktop webview</a></li><li><a href="../problems/P-229-Sophia-full-graph-traversal-can-exhaust-its-worker-stack" class="internal">P-229 — Sophia full graph traversal can exhaust its worker stack</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>

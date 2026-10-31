@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Work Packages</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Work Packages"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Work Packages"/><meta name="twitter:description" content="The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup."/><meta property="og:description" content="The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup."/><meta property="og:image:alt" content="The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/problems/Work-Packages"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/problems/Work-Packages"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS8ucXVhcnR6L3F1YXJ0ei9jb21wb25lbnRzL3N0eWxlcyIsInNvdXJjZXMiOlsibWVybWFpZC5pbmxpbmUuc2NzcyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTs7O0FBS0Y7RUFDRTtFQUNBOzs7QUFJSjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFOztBQUdGO0VBQ0U7O0FBSUY7RUFDRTtFQUNBO0VBQ0EiLCJzb3VyY2VzQ29udGVudCI6WyIuZXhwYW5kLWJ1dHRvbiB7XG4gIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgZGlzcGxheTogZmxleDtcbiAgZmxvYXQ6IHJpZ2h0O1xuICBwYWRkaW5nOiAwLjRyZW07XG4gIG1hcmdpbjogMC4zcmVtO1xuICByaWdodDogMDsgLy8gTk9URTogcmlnaHQgd2lsbCBiZSBzZXQgaW4gbWVybWFpZC5pbmxpbmUudHNcbiAgY29sb3I6IHZhcigtLWdyYXkpO1xuICBib3JkZXItY29sb3I6IHZhcigtLWRhcmspO1xuICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1saWdodCk7XG4gIGJvcmRlcjogMXB4IHNvbGlkO1xuICBib3JkZXItcmFkaXVzOiA1cHg7XG4gIG9wYWNpdHk6IDA7XG4gIHRyYW5zaXRpb246IDAuMnM7XG5cbiAgJiA+IHN2ZyB7XG4gICAgZmlsbDogdmFyKC0tbGlnaHQpO1xuICAgIGZpbHRlcjogY29udHJhc3QoMC4zKTtcbiAgfVxuXG4gICY6aG92ZXIge1xuICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICBib3JkZXItY29sb3I6IHZhcigtLXNlY29uZGFyeSk7XG4gIH1cblxuICAmOmZvY3VzIHtcbiAgICBvdXRsaW5lOiAwO1xuICB9XG59XG5cbnByZSB7XG4gICY6aG92ZXIgPiAuZXhwYW5kLWJ1dHRvbiB7XG4gICAgb3BhY2l0eTogMTtcbiAgICB0cmFuc2l0aW9uOiAwLjJzO1xuICB9XG59XG5cbiNtZXJtYWlkLWNvbnRhaW5lciB7XG4gIHBvc2l0aW9uOiBmaXhlZDtcbiAgY29udGFpbjogbGF5b3V0O1xuICB6LWluZGV4OiA5OTk7XG4gIGxlZnQ6IDA7XG4gIHRvcDogMDtcbiAgd2lkdGg6IDEwMHZ3O1xuICBoZWlnaHQ6IDEwMHZoO1xuICBvdmVyZmxvdzogaGlkZGVuO1xuICBkaXNwbGF5OiBub25lO1xuICBiYWNrZHJvcC1maWx0ZXI6IGJsdXIoNHB4KTtcbiAgYmFja2dyb3VuZDogcmdiYSgwLCAwLCAwLCAwLjUpO1xuXG4gICYuYWN0aXZlIHtcbiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gIH1cblxuICAmID4gI21lcm1haWQtc3BhY2Uge1xuICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICBwb3NpdGlvbjogZml4ZWQ7XG4gICAgdG9wOiA1MCU7XG4gICAgbGVmdDogNTAlO1xuICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlKC01MCUsIC01MCUpO1xuICAgIGhlaWdodDogODB2aDtcbiAgICB3aWR0aDogODB2dztcbiAgICBvdmVyZmxvdzogaGlkZGVuO1xuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRlbnQge1xuICAgICAgcG9zaXRpb246IHJlbGF0aXZlO1xuICAgICAgdHJhbnNmb3JtLW9yaWdpbjogMCAwO1xuICAgICAgdHJhbnNpdGlvbjogdHJhbnNmb3JtIDAuMXMgZWFzZTtcbiAgICAgIG92ZXJmbG93OiB2aXNpYmxlO1xuICAgICAgbWluLWhlaWdodDogMjAwcHg7XG4gICAgICBtaW4td2lkdGg6IDIwMHB4O1xuXG4gICAgICBwcmUge1xuICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgIH1cblxuICAgICAgc3ZnIHtcbiAgICAgICAgbWF4LXdpZHRoOiBub25lO1xuICAgICAgICBoZWlnaHQ6IGF1dG87XG4gICAgICB9XG4gICAgfVxuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRyb2xzIHtcbiAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgIGJvdHRvbTogMjBweDtcbiAgICAgIHJpZ2h0OiAyMHB4O1xuICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgIGdhcDogOHB4O1xuICAgICAgcGFkZGluZzogOHB4O1xuICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgIGJvcmRlci1yYWRpdXM6IDZweDtcbiAgICAgIGJveC1zaGFkb3c6IDAgMnB4IDRweCByZ2JhKDAsIDAsIDAsIDAuMSk7XG4gICAgICB6LWluZGV4OiAyO1xuXG4gICAgICAubWVybWFpZC1jb250cm9sLWJ1dHRvbiB7XG4gICAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICAgIGFsaWduLWl0ZW1zOiBjZW50ZXI7XG4gICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB3aWR0aDogMzJweDtcbiAgICAgICAgaGVpZ2h0OiAzMnB4O1xuICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodCk7XG4gICAgICAgIGNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgICAgICAgYm9yZGVyLXJhZGl1czogNHB4O1xuICAgICAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgICAgIGZvbnQtc2l6ZTogMTZweDtcbiAgICAgICAgZm9udC1mYW1pbHk6IHZhcigtLWJvZHlGb250KTtcbiAgICAgICAgdHJhbnNpdGlvbjogYWxsIDAuMnMgZWFzZTtcblxuICAgICAgICAmOmhvdmVyIHtcbiAgICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICB9XG5cbiAgICAgICAgJjphY3RpdmUge1xuICAgICAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgxcHgpO1xuICAgICAgICB9XG5cbiAgICAgICAgLy8gU3R5bGUgdGhlIHJlc2V0IGJ1dHRvbiBkaWZmZXJlbnRseVxuICAgICAgICAmOm50aC1jaGlsZCgyKSB7XG4gICAgICAgICAgd2lkdGg6IGF1dG87XG4gICAgICAgICAgcGFkZGluZzogMCAxMnB4O1xuICAgICAgICAgIGZvbnQtc2l6ZTogMTRweDtcbiAgICAgICAgfVxuICAgICAgfVxuICAgIH1cbiAgfVxufVxuIl19 */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="problems/Work-Packages"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-379"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-379" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../problems/">problems</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Work Packages</a></div></nav><h1 class="article-title">Work Packages</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-31T09:50:22.000Z">Oct 31, 2026</time><span>25 min read</span></p><ul class="tags"><li><a href="../tags/planning" class="internal tag-link">planning</a></li><li><a href="../tags/agents" class="internal tag-link">agents</a></li><li><a href="../tags/moc" class="internal tag-link">moc</a></li></ul></div></div><article class="popover-hint"><p>The <a href="../problems/Roadmap" class="internal" data-slug="problems/Roadmap">Roadmap</a> is the order and <a href="../Status" class="internal" data-slug="Status">Status</a> is where things stand. This page cuts the open work into <strong>packages</strong> that run in parallel. The aim is that several agents work at once with little waiting: on each other’s branches, on the same hot file, or on a decision only Daniel can make. The direction behind the choice of packages is the <a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a>.</p>
+<h2 id="rules-for-parallel-work">Rules for parallel work<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#rules-for-parallel-work" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<ol>
+<li>
+<p><strong>One package, one branch, one worktree.</strong> The branch is <code>wp-NN-&lt;slug></code>, in that agent’s own worktree (<code>~/Code/Moonkale/Moonkale-&lt;agent></code>) with its own <code>CARGO_TARGET_DIR</code>. Never share a target dir or a worktree.</p>
+</li>
+<li>
+<p><strong>Hot spots have one owner at a time.</strong> These files and crates conflict whenever two branches touch them. A package that needs one claims it in the table below first, and releases it when merged:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Hot spot</th><th>Why it conflicts</th><th>Owner now</th></tr></thead><tbody><tr><td><code>moonkale-core</code> (<code>Value</code>, <code>Node</code>, <code>Query</code>)</td><td>every crate depends on it</td><td>codex — WP-49 optimistic text writes and preview contract</td></tr><tr><td><code>ext-api/src/flow.rs</code> + <code>ext-api/CHANGELOG.md</code></td><td>every library and the panel; each change is a tag</td><td>codex — WP-49 shared conflict review (no flow API change)</td></tr><tr><td><code>graph-render</code> + the committed wasm in <code>graph-assets</code></td><td>binary output; two rebuilds can’t merge</td><td>—</td></tr><tr><td><code>Cargo.toml</code> / <code>Cargo.lock</code> (workspace)</td><td>every dependency change</td><td>merge in order; rebase, don’t hand-merge the lock</td></tr><tr><td><code>markdown/problems/Problem Log.md</code></td><td>every agent logs</td><td>append-only, numbers reserved below</td></tr></tbody></table></div>
+</li>
+<li>
+<p><strong>Numbers are reserved, not guessed.</strong> ADR and P- numbers come from this table. Take the next free one and write your name next to it before using it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Series</th><th>Next free</th><th>Reserved</th></tr></thead><tbody><tr><td>ADR</td><td>ADR-0032</td><td>ADR-0031 Claude (where annotations live: Sophia annotations in store-truth folders, the jsonl elsewhere, accepted), ADR-0030 Claude (where the truth lives: legacy folders keep files, everything else Sophia, accepted), ADR-0029 Claude (Sophia stores the code graph, accepted), ADR-0028 Claude (files or the graph, accepted: B), ADR-0023 codex (native editor frame measurements, merged), ADR-0024 Claude (block symbols, done), ADR-0025 Claude (sessions, accepted), ADR-0026 Claude (memory and the store, accepted), ADR-0027 Claude (simple by default, accepted)</td></tr><tr><td>P-</td><td>P-243</td><td>P-242 codex (sharing announcement test outruns remote position at 6× CPU); P-241 codex (standalone fuzz target directory collides with native graph artifacts, procedure corrected); P-240 codex (flow codegen swallowed per-operation write refusals, WP-49 audit); P-239 codex (empty staged diff tab and status refresh race, NEXT-41); P-238 codex (Sophia patches need the fetched rendering, SR-150); P-237 codex (literal pathspecs break stash cleanup, WP-52); P-236 codex (overview dirty-close confirmation focus, WP-26/60); P-235 codex (focus restoration needs the retained panel, WP-64); P-234 codex (guarded futures overflow the wasm stack, WP-57); P-233 Claude (structural edits need index nodes in the Sophia graph); P-232 codex (Sophia All(1000) namespace scan profile, upstream request); P-231 codex (Sophia replay generic memberships, resolved upstream in v0.1.1); P-230 Claude (macOS watch tests see the fixture’s own writes); P-229 codex (Sophia full graph traversal worker stack exhaustion; coarse metadata path fixed, upstream traversal open); P-228 codex (pulse browser measurement wrap aliasing, resolved); P-227 codex (flow codegen overwrite content version, resolved); P-225 codex (native FPS recorder idle/input accounting), P-226 codex (real-desktop undo: keyboard layout, resolved); P-222–P-224 Claude (desktop graph blank on WebKitGTK 2.54; panning far out moves nodes; 100k first render 15 s); P-221 Claude (release web client vs Rust 1.99 strip); P-220 Claude (flaky graph-rename diagnostic wait); P-217–P-219 Claude (Windows findings: tab after minimise, Rich relative images, CodeMirror find bar); P-216 Claude (graph surface over the texture limit); P-215 Claude (overlays outside the workbench variables); P-214 Claude (Windows window placement in the work area); P-213 Claude (Windows source builds need LLVM for RocksDB’s bindgen); P-212 Claude and codex (pulldown-cmark offset panic); P-211 codex (preview row queries and folding repeated full text work, WP-69); P-210 codex (complete multi-document rename and coordinated history); P-209 codex (bounded CI startup recovery and diagnostics); P-208 codex (graph rename refuses multi-file subsets); P-207 codex (CodeMirror external UTF-16 boundaries); P-206 codex (save completion must acknowledge submitted text); P-205 codex (graph structural preview freshness); P-204 codex (revision-aware structural proposals); P-203 codex (nested browser fixture workspace); P-202 codex (WP-67 lossless patch foundation); P-200 codex (WP-66 experimental v1 committed c564f15c); P-201 Claude (workspace-settings writes overlapped); P-199 codex (Ladybug prebuilt metadata in a read-only registry, NEXT-5); P-198 codex (Rust editor accessibility/backend activation, committed 80d4cb96); P-186–P-194, P-196 (editor frames) and P-197 (documentation previews) are codex’s, merged 2026-10-15; P-195 is whole-drive watching (Claude)</td></tr></tbody></table></div>
+</li>
+<li>
+<p><strong>Done means mergeable:</strong></p>
+<ul>
+<li>the gates (fmt, layering, colours, strings, tests, clippy, docs, wasm check);</li>
+<li>the package’s own browser suites, plus the suites of every crate it touched;</li>
+<li>the docs it changes (the feature’s page, <a href="../Status" class="internal" data-slug="Status">Status</a>, <a href="../extensions/Extension-Catalogue" class="internal alias" data-slug="extensions/Extension-Catalogue">Extension Catalogue</a> when an extension changes);</li>
+<li>a short HANDOFF note for the reviewer.</li>
+</ul>
+<p>Claude reviews and merges into master. Contributors’ branches merge only when Daniel says so.</p>
+</li>
+<li>
+<p><strong>No idle waiting.</strong> A blocked package names its blocker in its HANDOFF and the agent takes its <strong>side task</strong>: a review of another branch, a doc page, or a test gap in its own area. Questions for Daniel are batched into one message, not asked one by one.</p>
+</li>
+<li>
+<p><strong>Merge often, small.</strong> A package that runs longer than about three sessions is split. Master moves daily, and each branch merges master before it asks for review.</p>
+</li>
+</ol>
+<h2 id="the-packages">The packages<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#the-packages" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Size: <strong>S</strong> is about one agent session, <strong>M</strong> two to four, <strong>L</strong> many (split before starting). “Touches” lists the crates or areas changed; ★ marks a hot spot.</p>
+<h3 id="lane-a-the-code-editor-codex">Lane A: the code editor (codex)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-a-the-code-editor-codex" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>01</td><td><strong>60 FPS benchmark and baseline</strong> (CED-R22): <code>editor-fps.mjs</code> measures frame intervals while typing, holding arrows, scrolling and dragging a selection, in an ordinary file and the 3 MB one</td><td><code>packages/web/tests/e2e</code>, docs</td><td>—</td><td>S</td><td>p50/p95/max per interaction recorded in the roadmap</td></tr><tr><td>02</td><td><strong>60 FPS fixes</strong>, profile-led</td><td><code>code-view</code>, <code>editors/code-native</code></td><td>01</td><td>M</td><td>p95 ≤ 16.7 ms, no frame > 50 ms, on web and desktop release builds</td></tr><tr><td>03</td><td><strong>Rust editor to default</strong> (M3–M5 of the <a href="../editors/Rust-Code-Editor-Roadmap" class="internal alias" data-slug="editors/Rust-Code-Editor-Roadmap">Rust Code Editor Roadmap</a>): LSP parity, Moonkale context, cutover</td><td><code>code-view</code>, <code>editors/code*</code>, <code>services/lsp*</code></td><td>02</td><td>L (split per milestone)</td><td>each milestone’s gate in the roadmap</td></tr></tbody></table></div>
+<h3 id="lane-b-the-graph-engine-and-canvas">Lane B: the graph engine and canvas<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-b-the-graph-engine-and-canvas" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>04</td><td>✅ <strong>Done 2026-10-23 — Camera event + embed flag</strong> in the engine: <code>{kind:&quot;camera&quot;, scale, offset}</code> on pan and zoom, and <code>InNode.embed</code> (rect only, no label or symbol)</td><td><code>graph-render</code> ★</td><td>—</td><td>S</td><td>unit tests, and <code>graph-*</code> suites pass</td></tr><tr><td>05</td><td>✅ <strong>Done 2026-10-23 — Canvas component layer</strong>: one Dioxus layer over the canvas, one CSS transform per camera change, level-of-detail unmount, click pass-through. The flow editor’s parameter editor moves into it and follows pans</td><td>new crate <code>canvas-layer</code>, <code>editors/flow</code></td><td>04</td><td>M</td><td>the planned spec’s checklist (specifications README); <code>flow.mjs</code> + a new <code>canvas-layer.mjs</code></td></tr><tr><td>06</td><td><strong>Coarse tier</strong>: 1M nodes (<a href="../editors/Case-Selector" class="internal alias" data-slug="editors/Case-Selector">Case Selector</a>) — 2026-10-23: bounded hierarchy queries, source-size selector and one-region aggregate navigation implemented; hermetic production-panel fixture and native million-node projection; Sophia copy: 3.68 s cold / 1.81 s warm for 199,257 nodes → 2; cached cuts/layouts and upstream full traversal remain open</td><td><code>graph-render</code> ★</td><td>— (04 merged)</td><td>L</td><td>a 1M-node fixture stays interactive</td></tr><tr><td>07</td><td>✅ <strong>Done 2026-10-23 — E-graph drawing</strong>: e-classes as groups that collapse to one representative and expand, with rewrite provenance as edges</td><td><code>graph-render</code> ★, graph view</td><td>04</td><td>M</td><td>a synthetic e-graph fixture suite</td></tr></tbody></table></div>
+<p>WP-04/05 contribution completed by codex (2026-10-23), commits to be made by
+Claude because this worktree’s git metadata is read-only. Commit list (exact
+paths in the untracked root <code>COMMITS-from-codex.md</code>):</p>
+<ol>
+<li>WP-04 — <code>feat(graph-render): report frame-coalesced cameras and support embedded rectangles</code></li>
+<li>WP-05 — <code>feat(canvas-layer): share world-space Dioxus cards and migrate flow parameters</code></li>
+</ol>
+<p>The shared layer lives outside <code>editors/</code> to satisfy the extension assembly
+boundary. Flow’s sidecar preserves its schematic; future node-kind views can
+supply <code>CanvasItem</code> children and use embedded rectangles. P-227 fixes fetched
+content versions for repeated Generate, found by the required MTK browser check.
+The extension contribution contract remains deliberately deferred. Verification
+commands, including optional Julia simulation limits, are in <code>HANDOFF-from-codex.md</code>.</p>
+<h3 id="lane-c-flow-editor-and-julia-mistral-from-about-2026-10-31-claude-until-then">Lane C: flow editor and Julia (Mistral from about 2026-10-31; Claude until then)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-c-flow-editor-and-julia-mistral-from-about-2026-10-31-claude-until-then" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>08</td><td><strong>ADR-0022 stage C</strong>: a subsystem as one factor (a role on <code>Subflow</code>), RxInfer codegen through it</td><td><code>ext-api/flow.rs</code> ★, <code>editors/flow</code>, moonkale-julia</td><td>—</td><td>M</td><td>rxinfer e2e with a nested factor, real Julia run</td></tr><tr><td>09</td><td><strong>Lenticulum library</strong>: edge directions, its codegen, a live graph source from a Julia process</td><td>moonkale-julia, <code>ext-api/flow.rs</code> ★</td><td>08</td><td>L</td><td>a Lenticulum model built, run and drawn</td></tr><tr><td>10</td><td><strong>Run a model from the editor</strong>: Julia process, progress, results back as nodes</td><td>moonkale-julia, <code>editors/flow</code>, terminal service</td><td>08</td><td>M</td><td>mtk/rxinfer “Run” buttons with results in the panel</td></tr><tr><td>11</td><td>✅ <strong>Done 2026-10-23 — Symbols, the rest</strong> (codex): closed absolute path fills and persistent grid snapping (ADR-0024 amendment)</td><td><code>editors/flow</code>, <code>graph-render</code> ★</td><td>04 merged</td><td>S</td><td>flow, subflow, graph-flow, graph-shapes, mtk and rxinfer pass; fill pixels, dragged/saved grid coordinates and Alt bypass checked</td></tr></tbody></table></div>
+<h3 id="lane-d-data-and-tables">Lane D: data and tables<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-d-data-and-tables" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>12</td><td><strong>Supabase table editor study</strong>: requirements only, no code (<a href="../research/Scrutiny" class="internal" data-slug="research/Scrutiny">Scrutiny</a> rules). Taken and adapted items go into <a href="../editors/Table-Editor" class="internal alias" data-slug="editors/Table-Editor">Table Editor</a>, rejected ones into <a href="../research/Scrutiny" class="internal" data-slug="research/Scrutiny">Scrutiny</a></td><td>docs only</td><td>—</td><td>S</td><td>both pages updated; Daniel reviews the rejections</td></tr><tr><td>13</td><td>✅ <strong>Pushdown — done 2026-10-30 (codex)</strong>: sort, filter and keyset pagination sent to the source when it can, client-side otherwise (with the “partial” note)</td><td><code>editors/table</code>, <code>sources/sql</code>, <code>moonkale-core</code> ★ (<code>Query</code> capabilities)</td><td>12</td><td>M</td><td>million-row table-grid: 1000 pages, p50 198.95 ms / p95 215.68 ms page-to-paint; 4000 loaded / 41 DOM rows; all gates and full feature matrix pass</td></tr><tr><td>14</td><td><strong>Writes to database sources</strong> (R-41) and <strong>inline cell edits</strong> — SQL scope done and validated 2026-10-30: SQLite, DuckDB and Turso; all gates and the 59-case browser matrix pass; graph/KV remain read-only</td><td><code>moonkale-core</code> ★, <code>sources/*</code>, <code>editors/table</code>, policy classifier</td><td>— (WP-12 refines controls later)</td><td>L (split: core write model / SQL / grid editing)</td><td>edits round-trip with expected versions; refused ops shown per cell</td></tr><tr><td>15</td><td>✅ <strong>Done 2026-10-23 — Typed cells</strong> (codex): validated dates, source-known node links, bounded vectors and sparklines</td><td><code>moonkale-core</code> ★ (<code>Value</code>), <code>editors/table</code></td><td>—</td><td>M</td><td>type/source/grid unit tests and SQLite/DuckDB table-grid pass; standalone locale/ref-activation browser check passes</td></tr><tr><td>16</td><td><strong>Schema view</strong>: tables as nodes with one port per column, foreign keys as wires, using the canvas layer</td><td><code>editors/table</code> or a new extension</td><td>05, 12</td><td>M</td><td>schema suite on the fixture’s SQLite and DuckDB</td></tr><tr><td>17</td><td><strong>Postgres/Supabase source</strong> (stub today)</td><td><code>sources/sql</code></td><td>—</td><td>M</td><td>read-only Postgres in CI (service container)</td></tr></tbody></table></div>
+<h3 id="lane-e-the-code-graph-north-star">Lane E: the code graph (North Star)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-e-the-code-graph-north-star" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>18</td><td><strong>Unison codebase as a graph source</strong>: definitions, types and the dependency DAG, content-addressed (<code>NodeId::from_content</code>). Built alongside Sophia (WP-68), not replaced by it (Daniel, 2026-10-17; Sophia SR-23). <strong>Implemented 2026-10-17:</strong> default-off <code>unison</code>, read-only bounded UCM HTTP snapshots, schema fixture and native renderer-payload test; no new shared kinds; watch/edit/dialect later</td><td>new <code>sources/unison</code></td><td>—</td><td>M</td><td>a Unison codebase opens as a source and draws in the graph view</td></tr><tr><td>19</td><td><strong>Annotations layer</strong> (<a href="../architecture/Annotations" class="internal" data-slug="architecture/Annotations">Annotations</a>): typed annotations with provenance, shown as engine layers, including <strong>proof</strong> annotations (equivalence, implication, memory safety, safe concurrency) with their checker, the versions checked and stale state (<a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a> §7)</td><td><code>moonkale-core</code> ★, ext-api, graph view</td><td>—</td><td>M</td><td>annotations on index nodes, toggled as layers</td></tr><tr><td>20</td><td><strong>A Datalog dialect</strong> over graph sources: rules and queries, results lifted into nodes and edges, shown in the table and graph views</td><td>new crate, <code>Query::Text</code> dialect</td><td>19 helps</td><td>M</td><td>rule queries over the index fixture</td></tr><tr><td>21</td><td><strong>Persisted, incremental index in a Sophia store</strong> (<a href="../decisions/ADR-0029-Sophia-stores-the-code-graph" class="internal alias" data-slug="decisions/ADR-0029-Sophia-stores-the-code-graph">ADR-0029 Sophia stores the code graph</a>, 2026-10-23; replaces the Recoco/Thread direction): the index writes definitions, content ids and edges into a Sophia store per opened folder under <code>.moonkale/</code>, a derived cache of the files, behind the <code>sophia</code> feature. Interface agreed with the Sophia session. <strong>Prerequisite done 2026-10-23:</strong> shared <code>binding</code>/entity paths, Julia ownership and Rust/Python module/impl/class naming in <code>moonkale-content-id</code> (SPEC-009 §8); naming golden data, unchanged v7 ids. <strong>SR-145 follow-up 2026-10-24:</strong> depth guards replaced by heap-stack passes and total byte/work budgets; <code>modules_around</code>/<code>locate</code> exported for Sophia, depth-100,000 regressions. <strong>Folder integration implemented 2026-10-24:</strong> derived SQLite folder cache, manifest-hash reopen, atomic debounce batches and bounded owner retries, shared module-aware Julia identities, extra read-only Source with stale-file fallback; hermetic acceptance tests. Verification and repository measurements in <a href="../architecture/Indexing" class="internal" data-slug="architecture/Indexing">Indexing</a>. Conventional Rust file modules; custom target/<code>#[path]</code> trees remain follow-up</td><td><code>services/index</code>, <code>sources/sophia</code></td><td>68</td><td>L (split per acceptance test in <a href="../research/External-Code-Intelligence-Projects" class="internal alias" data-slug="research/External-Code-Intelligence-Projects">External Code Intelligence Projects</a>)</td><td>reopening reuses the store; a one-file change rewrites only that file’s facts; deleting the store loses nothing</td></tr><tr><td>22</td><td><strong>Calls and references</strong>: explicit folder import resolution implemented 2026-10-28 (codex), alongside existing same-file resolution; unique Rust/Python/Julia targets only, provenance, batch invalidation and Sophia file-owned annotations. See <a href="../architecture/Indexing" class="internal" data-slug="architecture/Indexing">Indexing</a> for conservative syntax limits</td><td><code>services/index</code>, <code>sources/sophia</code></td><td>— (coordinate with 21)</td><td>M</td><td>multi-file calls/references, ambiguous/glob/external/shadow/stale fixtures; fresh/incremental cache equivalence</td></tr><tr><td>65</td><td><strong>Code graph schema, steps 1–2</strong> (<a href="../architecture/Code-Graph-Schema" class="internal alias" data-slug="architecture/Code-Graph-Schema">Code Graph Schema</a> §10): the shared kinds and <code>Definition</code> nodes (today’s <code>Symbol</code> migrated, with <code>def_kind</code>), location ids for definitions, <code>Contains</code>/<code>Defines</code>/<code>Names</code>, for Rust, Julia and Python</td><td><code>moonkale-core</code> ★ (kind constants), <code>services/index</code></td><td>—</td><td>M</td><td>the index fixture yields <code>Definition</code> nodes with stable location ids across body edits</td></tr><tr><td>66</td><td><strong>Content ids</strong> (<a href="../architecture/Code-Graph-Schema" class="internal alias" data-slug="architecture/Code-Graph-Schema">Code Graph Schema</a> §4): the normaliser per core language, BLAKE3 over canonical bytes, mutual-recursion components, behind a feature</td><td><code>services/index</code>, <code>moonkale-core</code></td><td>65, 22</td><td>M</td><td>the §9 fixture tests (rename, move, comment, body change, recursion); experimental v1 committed c564f15c, off by default</td></tr><tr><td>67</td><td><strong>Lossless syntax and printing back</strong> (L1; <a href="../decisions/ADR-0028-Files-or-the-graph" class="internal alias" data-slug="decisions/ADR-0028-Files-or-the-graph">ADR-0028 Files or the graph</a> accepted B, 2026-10-15): trivia attached to tokens, structural edits as minimal text patches, Rust first; the <code>truth: files | store</code> field on the source descriptor and the conflict path for graph-side edits</td><td><code>services/index</code>, <code>code-view</code>, the document path, <code>moonkale-core</code> ★ (descriptor)</td><td>65</td><td>L</td><td>a rename and a move from the graph view leave every byte outside the edit unchanged; slice 1 implemented: source truth + default-off pure Rust snapshots/plans; slice 2 adds bounded revision-aware document proposals and typed conflicts; slice 3 adds experimental desktop/web graph controls, previews and explicit conflict/recompute handling; slice 4 adds reference-aware rename through LSP; slice 5 adds complete same-folder multi-file proposals, coordinated history and explicit per-file saving</td></tr><tr><td>68</td><td><strong>The Sophia source</strong> (<code>sources/sophia</code>; was “a base Sophia”, Daniel 2026-10-15). Sophia itself is built in its own repository (sophia-89 session; specs SPEC-001…005, drafts 2026-10-20). Moonkale’s part is a thin adapter over Sophia’s <code>sophia-interface</code> crate implementing <code>Source</code> per SPEC-004 and <a href="../architecture/Code-Graph-Schema" class="internal alias" data-slug="architecture/Code-Graph-Schema">Code Graph Schema</a> §4/§5/§11: <code>truth: Store</code>, family <code>Graph</code>, the existing <code>Op</code> set (no new variants), read-only <code>sql</code>, polling <code>changes_since</code>, a reader id given once at open, and the <code>sophia:Settings</code> profile node. Depends on <code>sophia-interface</code> by git rev. <strong>Implemented 2026-10-20</strong> at rev 404b332b (edit tokens), 202e137a (<code>query</code> dialect, <code>examples/edit_loop.rs</code> for B-15), 4c2aaab3 (desktop-check fixes), bed1e02e (P-229: <code>all</code> on large stores), cafe940e (SPEC-009 folder store, wasm read path, SP-015), c3c48e02 (file facts follow their files): default-off <code>sophia</code> feature, <code>*.sophia</code> opener, §9 items 1–6 tested through <code>Source</code>, graph payload test</td><td>new <code>sources/sophia</code>, graph panel (show <code>Name</code> nodes for store sources)</td><td>18 helps</td><td>M</td><td>SPEC-004 §9: the sample store draws; a text edit moves the name to a new content id; a parse error shows diagnostics and leaves the name; a rename arrives via <code>changes_since</code>; a profile switch reprints with no id change; <code>sql</code> returns a table + subgraph and a write is refused</td></tr><tr><td>69</td><td><strong>The Rust editor’s toolbar</strong> (<a href="../decisions/ADR-0027-Simple-by-default" class="internal alias" data-slug="decisions/ADR-0027-Simple-by-default">ADR-0027 Simple by default</a>): at most 4 visible controls (Save, Reload, Wrap, the gear), the rest in a keyboard- and touch-reachable ⋯ menu, the cursor word off its own row; plus the preview typing cost it exposed (P-211)</td><td><code>code-view</code> (native panel, surface, presentation)</td><td>—</td><td>M</td><td>done 2026-10-17 (codex): toolbar-icons and the native suites assert the limit and the menu; live-preview-long passes in a dev build</td></tr></tbody></table></div>
+<p>Later in lane E, after a structure editor exists:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>30</td><td><strong>Declarative rendering settings</strong> (<a href="../architecture/North-Star" class="internal alias" data-slug="architecture/North-Star">North Star</a>, “Proposal: declarative rendering settings”): a <code>[render]</code> settings schema (keywords, index base, blocks, type annotations, macros, operators), and projections over typed nodes that parse back. First as a design note with the invertibility rules and the index-base case worked out; code only after WP-18/19 give typed nodes</td><td>settings schema, a projection crate, the code view</td><td>18, 19; a structure editor</td><td>L (design first: S)</td><td>design: the schema, the invertibility rules, and three worked examples (<code>fn</code>/<code>function</code>, 0/1-based index, collapsed macros) reviewed by Daniel</td></tr></tbody></table></div>
+<h3 id="lane-f-platform-security-upkeep">Lane F: platform, security, upkeep<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-f-platform-security-upkeep" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>23</td><td><strong>Security issues</strong> #15 (project-fs races, data loss), #18 (SSH), #20 (server batch)</td><td><code>sources/project-fs</code>, <code>services/remote</code>, <code>server</code></td><td>—</td><td>M (one per issue)</td><td>the issue’s repro as a test, closed</td></tr><tr><td>24</td><td><strong>Android</strong>: specs <a href="../specifications/028" class="internal" data-slug="specifications/028">028</a> (vault export/import, SAF folders) and <a href="../specifications/029" class="internal" data-slug="specifications/029">029</a> (name and icon from configuration)</td><td><code>mobile</code></td><td>—</td><td>M</td><td>on the S10e (release APK)</td></tr><tr><td>25</td><td><strong>Projects</strong> (spec <a href="../specifications/003" class="internal" data-slug="specifications/003">003</a>, R-40) and cross-source links (R-16)</td><td>shell, state store</td><td>—</td><td>L</td><td>per the spec</td></tr><tr><td>26</td><td><strong>CI breadth and flakes</strong>: more browser suites in CI, the <code>stores</code> tree-row flake, <code>live-preview-long</code>’s noisy bound. WP-26 native CI addition (2026-10-17): advisory Windows/macOS platform tests and default distribution check implemented; first GitHub runs pending, see <a href="../testing/How-to-Write-Tests" class="internal alias" data-slug="testing/How-to-Write-Tests">How to Write Tests</a>. Cold-cache C++ builds have a 30-minute startup budget (2026-10-29), with a separate two-minute launched-backend limit and thread/log diagnostics; P-209 adds one bounded retry for inactivity only, isolated process cleanup and per-attempt logs/diagnostics after a separate 2026-10-16 stall just after tooling installation</td><td><code>.github</code>, <code>packages/web/tests/e2e</code></td><td>—</td><td>S</td><td>named suites in CI, three green runs in a row</td></tr><tr><td>27</td><td><strong>Status refresh</strong>: <a href="../Status" class="internal" data-slug="Status">Status</a> still describes 2026-10-01</td><td>docs</td><td>—</td><td>S</td><td>checked against the code</td></tr></tbody></table></div>
+<h3 id="lane-g-publishing">Lane G: publishing<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-g-publishing" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>29</td><td><strong>Reader mode</strong>, the server half: read-only sources, visitor caps, deep links</td><td><code>server</code>, shell</td><td>—</td><td>M</td><td>a visitor without a token browses and queries a published folder</td></tr></tbody></table></div>
+<p><strong>Not scheduled, way later:</strong> WP-28, a stripped-down <strong>static reader</strong> web version (<a href="../architecture/Publishing-Sources" class="internal alias" data-slug="architecture/Publishing-Sources">Publishing Sources</a>, “Revisited 2026-10-14”). The full web version stays the web target, and Quartz stays for the vault. No agent picks this up until Daniel schedules it.</p>
+<h3 id="lane-h-knowledge-graphs-rdf-and-layered-memory-proposed">Lane H: knowledge graphs (RDF and layered memory), proposed<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-h-knowledge-graphs-rdf-and-layered-memory-proposed" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>The frontend for oxilite and tiramemsu, using their crates as they are (<a href="../extensions/Knowledge-Graph-Studio" class="internal alias" data-slug="extensions/Knowledge-Graph-Studio">Knowledge Graph Studio</a>). It lives in its own repository, like moonkale-julia. Not scheduled.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>31</td><td><strong>An oxilite store as a source</strong>: SPARQL in the table, CONSTRUCT/DESCRIBE in the graph view, read-only (KG-01, 08, 09)</td><td>new extension repo; <code>ext-api</code> source contract</td><td>—</td><td>M</td><td>a demo store queried and drawn in the browser suite</td></tr><tr><td>32</td><td><strong>A language-server contribution point</strong>, then <code>oxilite studio-server</code> for SPARQL, Turtle, Datalog and Cypher; run, explain, pins (KG-03, 05, 06)</td><td><code>services/lsp-local</code> (discovery), ext-api ★</td><td>31</td><td>M</td><td>completion from the store’s vocabulary in a pinned <code>.rq</code></td></tr><tr><td>33</td><td><strong>Trust</strong>: resource view, inferred badges, “why?” proof trees as annotations, live SHACL diagnostics (KG-12, 15–17)</td><td>the extension; annotations (WP-19) helps</td><td>31</td><td>M</td><td>the demo’s deliberate SHACL violation shows at its line, with its proof</td></tr><tr><td>34</td><td><strong>Schema registry</strong> view and edits through oxilite’s registry API (KG-19–22)</td><td>the extension, graph view styles</td><td>31</td><td>M</td><td>the zoo/garden/common scenario from the spec</td></tr><tr><td>35</td><td><strong>Layered memory</strong>: tiramemsu as a source, statement junctions, the two-clock control, conflicts, a fact’s life, saved answers (KG-27–36)</td><td>the extension, <code>graph-render</code> ★ (junction styling)</td><td>31</td><td>L (split)</td><td>tiramemsu’s README questions answered in the UI</td></tr></tbody></table></div>
+<h3 id="lane-i-requests-of-2026-10-14">Lane I: requests of 2026-10-14<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-i-requests-of-2026-10-14" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>36</td><td><strong>Math: any delimiter, LaTeX or Typst per formula, a normaliser</strong> (<a href="../editors/Math-Delimiters-and-Renderers" class="internal alias" data-slug="editors/Math-Delimiters-and-Renderers">Math Delimiters and Renderers</a>)</td><td>a shared math parser (library), <code>editors/markdown</code>, <code>packages/js/milkdown</code>; the native preview (codex)</td><td>—</td><td>M</td><td>the acceptance list in the spec</td></tr><tr><td>37</td><td><strong>Plates and typed spaces in the flow model</strong> (LT-03, LT-05): repetition drawn once with its multiplicity; variable spaces, shapes, units; refusal by type</td><td><code>ext-api/flow.rs</code> ★, <code>editors/flow</code>, <code>graph-render</code> ★ (multiplicity badge)</td><td>08</td><td>M</td><td>an RxInfer i.i.d. plate and a unit mismatch refused, in the browser</td></tr><tr><td>38</td><td><strong>Live runs</strong> (LT-10, 12, 13): <code>Moonkale.jl</code>, a live source, run records (a core service, shared with WF-02)</td><td>moonkale-julia, a new run-record service, <code>editors/flow</code></td><td>08</td><td>L (split: run records / Julia side / drawing)</td><td>an RxInfer run streams beliefs onto the graph and scrubs</td></tr><tr><td>39</td><td><strong>Debugger</strong>: a DAP service and an opt-in debug panel (<a href="../research/Debugger-Requirements" class="internal alias" data-slug="research/Debugger-Requirements">Debugger Requirements</a>), after the model debugger</td><td>new <code>services/dap</code>, a new extension, code editor decorations</td><td>38 (model debugger first)</td><td>L</td><td>breakpoint, step and inspect in Rust and Julia</td></tr><tr><td>40</td><td><strong>Plot extension — quick look done 2026-10-31 (codex, validated by Claude)</strong> (<a href="../research/Plotting-Requirements" class="internal alias" data-slug="research/Plotting-Requirements">Plotting Requirements</a>): the quick look first (PLT-01 to 03, 06), then live plots (PLT-09)</td><td>a new extension, <code>editors/table</code> (Plot action)</td><td>—</td><td>M</td><td>a table result plots in one action; a selected point selects its row</td></tr><tr><td>41</td><td><strong>Workflow runner</strong> (<a href="../research/Workflow-Automation-(n8n,-Windmill)" class="internal alias" data-slug="research/Workflow-Automation-(n8n,-Windmill)">Workflow Automation (n8n, Windmill)</a>): run records and re-run from a step first</td><td>the run-record service (38), <code>editors/flow</code></td><td>38</td><td>L</td><td>a three-step flow runs on file change, and each step’s output is inspectable</td></tr><tr><td>42</td><td><strong>Databento market data</strong> (<a href="../research/Trading-with-Databento" class="internal alias" data-slug="research/Trading-with-Databento">Trading with Databento</a>): the source with cost estimates and a local cache, typed schemas, symbology; then order-book views and replay</td><td>its own repository; WP-15 (typed cells), WP-40 (plots), WP-38 (runs)</td><td>15, 40</td><td>L (split)</td><td>a cached day of CME futures in the grid and as candlesticks, replayed</td></tr><tr><td>43</td><td><strong>Multibuffers over nodes</strong> (<a href="../research/Editor-Prior-Art-(Obsidian,-VS-Code,-Zed)" class="internal alias" data-slug="research/Editor-Prior-Art-(Obsidian,-VS-Code,-Zed)">Editor Prior Art (Obsidian, VS Code, Zed)</a>): one editable buffer of excerpts from files, rows and code-graph definitions</td><td><code>code-view</code>, the code editor (codex’s lane)</td><td>03</td><td>L</td><td>references to a symbol edited in place across three files</td></tr><tr><td>44</td><td><strong>JSON Canvas</strong> read and write on the graph engine with canvas components</td><td>the canvas layer (WP-05), a new view</td><td>05</td><td>M</td><td>an Obsidian <code>.canvas</code> file opens, edits and saves back unchanged where untouched</td></tr><tr><td>45</td><td><strong>Statistical logic programs in the flow model</strong> (LT-24 to LT-29): relation and rule kinds, lifted/ground expansion, derivation graphs, a query box</td><td><code>ext-api/flow.rs</code> ★, <code>editors/flow</code>, the Datalog dialect (WP-20)</td><td>37, 20</td><td>L</td><td>a small weighted program answers a query with its proof graph</td></tr><tr><td>46</td><td><strong>Sessions</strong> — <strong>done 2026-10-28 (codex)</strong> (<a href="../decisions/ADR-0025-Sessions-are-the-outermost-state" class="internal alias" data-slug="decisions/ADR-0025-Sessions-are-the-outermost-state">ADR-0025 Sessions are the outermost state</a>, accepted): named state, Default migration, dirty working-set switches, title/palette switcher, session settings, confirmed state-only trash and versioned metadata exchange; later ADR operations are named in its implementation notes</td><td><code>state</code>, shell, <code>ext-api</code>, <code>editors/agent</code> (conversations); no core scope change</td><td>—</td><td>M</td><td>two sessions retain different sources and unsaved buffers; sessions.mjs, private desktop, all AGENTS gates and the full CI browser feature matrix pass</td></tr><tr><td>47</td><td><strong>Security hygiene in CI</strong> — implemented 2026-10-17, awaiting coordinator review: blocking Rust auditors with shared dated exceptions, all six JS lockfiles, 63 vendored hashes, two non-blocking nightly 60 s parser targets; P-212 first CI crash now contained at production Markdown boundaries with four regression seeds; 216 code-view and five agent tests pass with supported registry-write bypass; browser gates pending; the planned math normaliser still needs a target when built</td><td><code>.github</code>, <code>deny.toml</code>, <code>tools</code>, standalone <code>fuzz/</code></td><td>—</td><td>S</td><td>New Rust advisory/yank or high/critical npm advisory fails; existing findings explicitly deferred, no upgrades; <a href="../architecture/Security" class="internal" data-slug="architecture/Security">Security</a></td></tr><tr><td>48</td><td><strong>Participants, roles and agent tasks</strong> (<a href="../architecture/Shared-Work" class="internal alias" data-slug="architecture/Shared-Work">Shared Work</a> SW-01 to 08): roles per session, agents with sponsors, a task queue, an approval inbox, attribution, budgets</td><td>server (accounts first), shell, <code>editors/agent</code>, the entity log</td><td>accounts on the server; 46</td><td>L (split)</td><td>two people and an agent in one session, the agent’s writes approved from the inbox</td></tr><tr><td>49</td><td><strong>Proposals and optimistic writes</strong> (SW-20, 21, 23): first text slice done and validated 2026-10-30 (codex); exact read versions, session review inbox, selected-file review, coordinated buffers, ordered file saves and Sophia checked file transactions. WP-14 adds typed SQL rows; current author/time metadata and durable multi-agent inbox remain later work</td><td><code>moonkale-core</code> ★ (write API, R-41), <code>sources/*</code>, a review view</td><td>—</td><td>L</td><td>text slice: proposals.mjs, selected-file review, stale conflict/re-review, atomic buffers and Sophia transactions pass; SQL acceptance passes with WP-14</td></tr><tr><td>50</td><td><strong>Comments</strong> (<a href="../architecture/Annotations" class="internal" data-slug="architecture/Annotations">Annotations</a> steps + SW-30, 31, 34): threads on text, nodes, flow blocks, cells; rich rendering; <code>@agent</code> mentions later</td><td><code>moonkale-core</code> (Annotation kind), ext-api, editors, the state store</td><td>—</td><td>M</td><td>a comment on a flow block and one on a table cell, both found in the Annotations panel</td></tr><tr><td>51</td><td><strong>Git sync and text conflicts — done 2026-10-29 (codex)</strong> (<a href="../architecture/Version-Control-Requirements" class="internal alias" data-slug="architecture/Version-Control-Requirements">Version Control Requirements</a> VC-06, 07): reviewed sync, system credentials, exact-commit leases and reusable three-way text hunks; binary/mode conflicts use external Git; SW-21 adapter remains WP-49. Twelve Git/model tests, all gates, the full browser feature matrix and private desktop acceptance pass</td><td><code>extensions/git</code></td><td>—</td><td>M</td><td>a rebase conflict resolved in the view and pushed</td></tr><tr><td>52</td><td><strong>Git everyday — done 2026-10-29 (codex)</strong> (VC-03, 05, 09, 10, 11): text hunks/lines both ways, reviewed branches/stash/reset/reflog recovery, shared Rust/CodeMirror blame gutter; P-237 stash cleanup regression</td><td><code>extensions/git</code></td><td>—</td><td>M</td><td>24 Git tests, git/git-sync/git-everyday, both gutters, all AGENTS gates and the reconciled 59-case browser feature matrix pass</td></tr><tr><td>53</td><td><strong>A version-control trait, semantic diffs, then Jujutsu</strong> (VC-20, 21, 23): history of a node; flow and table diffs; jj as the second system</td><td><code>moonkale-core</code> ★ (the trait), <code>extensions/git</code>, <code>editors/flow</code>, <code>editors/table</code></td><td>51</td><td>L</td><td>a flow diff drawn on the canvas; the same views on a jj repository</td></tr><tr><td>54</td><td><strong>Tools as actors</strong> (<a href="../architecture/Shared-Work" class="internal alias" data-slug="architecture/Shared-Work">Shared Work</a> §5, SW-40 to 45): provenance on derived data, derived marked and stale, tool writes as proposals</td><td><code>moonkale-core</code> ★ (provenance), the index, LSP, the flow libraries’ codegen</td><td>21 helps</td><td>L</td><td>a parser’s symbols marked stale after an edit and fresh after the reparse; a codegen run reviewed as a proposal</td></tr><tr><td>55</td><td><strong>The benchmark runner</strong> (<a href="../testing/Benchmarks" class="internal" data-slug="testing/Benchmarks">Benchmarks</a>): the bench lock, the results database, the existing benchmarks moved in, then the frame gates and the no-growth test</td><td><code>packages/web/tests/e2e</code>, a small runner</td><td>—</td><td>M</td><td>BM-04, 09, 11 and 25 recorded in the results database on a quiet machine</td></tr><tr><td>56</td><td><strong>Memory and the store</strong> — <strong>done 2026-10-28 (codex)</strong> (<a href="../decisions/ADR-0026-Memory-and-the-store" class="internal alias" data-slug="decisions/ADR-0026-Memory-and-the-store">ADR-0026 Memory and the store</a>): bounded folder-buffer recovery, explicit restore/discard and stale-base comparison; reuses WP-21/Sophia input manifests and WP-66 identities; platform limits for recovery, identities, math, images and each derived folder graph. Preview persistence/Android pressure follow-ups remain in ADR-0026</td><td><code>state</code>, <code>ext-api</code>, the index, previews, shell</td><td>21</td><td>M</td><td>killed desktop app restores and saves an unsaved buffer; unchanged folder reopen parses zero code files; unit tests, recovery.mjs, all gates and the CI browser matrix pass</td></tr><tr><td>57</td><td><strong>Crash safety, the rest</strong> (<a href="../architecture/Crash-Safety" class="internal alias" data-slug="architecture/Crash-Safety">Crash Safety</a> steps 3 to 7) — implemented 2026-10-28: native guards and session disablement, web abort overlay, startup counter and safe mode, bounded fresh wasm retries; validation recorded in the handoff. Unsaved-buffer snapshots stay WP-56; external compiled-in callbacks must adopt the helpers</td><td>shell, <code>ext-host</code>, the web client</td><td>—</td><td>M</td><td>a panicking task disables only its extension; <code>--safe</code> starts clean</td></tr><tr><td>58</td><td><strong>egui comparison spike</strong>, only if revisited (<a href="../research/egui-and-Dioxus" class="internal alias" data-slug="research/egui-and-Dioxus">egui and Dioxus</a>): one egui app with the table grid and the graph engine, measured against the Dioxus panels</td><td>a throwaway crate</td><td>—</td><td>S</td><td>the benchmark numbers side by side, and a verdict</td></tr><tr><td>59</td><td><strong>Linked panels</strong> — <strong>done 2026-10-29 (codex)</strong>, steps 1–5; model/session tests, browser acceptance, private desktop, all AGENTS gates and the full CI browser feature matrix pass; cross-window membership/navigation follow-up validated 2026-10-30 (gates, reconciled 62-case matrix, real card drag and private desktop); step 6 remains later work (<a href="../editors/Linked-Panels" class="internal alias" data-slug="editors/Linked-Panels">Linked Panels</a>): link groups (lead and followers) in the session, tab stripes and markers, graph panel instances per group, Open with context, selection sync</td><td><code>ext-api</code> (link model), shell, <code>editors/graph</code>, <code>editors/markdown</code>, <code>editors/table</code>, <code>editors/flow</code></td><td>46 (groups live in the session)</td><td>M</td><td><code>linked-panels.mjs</code>: two groups with their own local graphs, marked, surviving a reload</td></tr><tr><td>60</td><td><strong>Overview — steps 1–4 done 2026-10-29 (codex); step 5 cross-window catalogue/focus/move validated 2026-10-30 (gates, real browser drag and inspected desktop; compositor focus policy applies)</strong> (<a href="../Overview" class="internal" data-slug="Overview">Overview</a>): every open tab as a card (Ctrl+Alt+Space), grouped by link group and window, type-to-search with quick open below, extension previews, the engine’s snapshot</td><td>shell, <code>ext-api</code> (<code>Extension::preview</code>), <code>graph-render</code> ★ (snapshot), the editors’ previews</td><td>59 helps (groups)</td><td>M</td><td><code>overview.mjs</code>: twelve cards/two tiles in 14.63 ms, fifty cards in 23.25 ms; filter/switch/close, grouping, F13, offscreen unmounting; all gates, CI feature matrix and private desktop pass</td></tr><tr><td>61</td><td><strong>Input layouts</strong> — <strong>done 2026-10-28 (codex)</strong>, shipped scope and platform follow-ups in <a href="../platform/Input-Layouts" class="internal alias" data-slug="platform/Input-Layouts">Input Layouts</a>: the five-button mouse map, F13–F24 for gamer mice, keymap presets (VS Code, Obsidian first), positional punctuation bindings on QWERTZ/AZERTY, the left-hand layout, the cheat sheet</td><td>shell (commands, keybindings), settings, the canvases and the table</td><td>—</td><td>M</td><td><code>mouse.mjs</code> and <code>keymaps.mjs</code> per the spec</td></tr><tr><td>62</td><td><strong>3D on monitors and in headsets</strong> (<a href="../editors/3D-Graphs-on-Monitors-and-in-Headsets" class="internal alias" data-slug="editors/3D-Graphs-on-Monitors-and-in-Headsets">3D Graphs on Monitors and in Headsets</a>): meaningful depth, billboard labels and click-to-fly; a camera with several views (side-by-side and anaglyph first); text in 3D and ray picking; then OpenXR (SteamVR, Monado) and WebXR</td><td><code>graph-render</code> ★, <code>editors/graph</code></td><td>— (a headset from step 4)</td><td>L (split per step)</td><td>the XR budget: 90 Hz with both eyes at 10 k nodes</td></tr><tr><td>63</td><td><strong>Simple by default</strong> — <strong>done 2026-10-28 (codex)</strong> (<a href="../decisions/ADR-0027-Simple-by-default" class="internal alias" data-slug="decisions/ADR-0027-Simple-by-default">ADR-0027 Simple by default</a>): the two densities, the chrome budget applied to today’s UI (menu bar folded, rail at seven, toolbars), extension chrome offered not imposed</td><td>shell, every panel’s toolbar</td><td>—</td><td>M</td><td><code>density.mjs</code>: Simple within budget, Detailed shows more, every command reachable in both</td></tr><tr><td>64</td><td><strong>Shortcuts in plain sight and no forced switches</strong> (ADR-0027 §4 and §5) — <strong>done 2026-10-28 (codex)</strong>: shared effective shortcuts, empty-tile hints, 500 ms Ctrl/Cmd tips, grouped/searchable F1 cheat sheet, once-per-command mouse nudges in platform state with a disable setting, title-bar file/command search from printable keys or <code>/</code>, and dialog/panel focus and return. Both journeys and the hold-Ctrl screenshot pass; full CI feature/browser matrix and gates recorded in the handoff. Presets/five-button maps stay WP-61, overview WP-60</td><td>shell, <code>ext-api</code> (commands carry their binding to every surface)</td><td>61 helps</td><td>M</td><td><code>journey-keyboard.mjs</code> and <code>journey-mouse.mjs</code> pass; a hold-Ctrl screenshot with badges on every visible button</td></tr></tbody></table></div>
+<h3 id="lane-j-requests-of-2026-10-29-agents-in-the-ui-and-on-the-graph">Lane J: requests of 2026-10-29 (<a href="../architecture/Agents-in-the-UI-and-on-the-Graph" class="internal alias" data-slug="architecture/Agents-in-the-UI-and-on-the-Graph">Agents in the UI and on the Graph</a>)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#lane-j-requests-of-2026-10-29-agents-in-the-ui-and-on-the-graph" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>WP</th><th>What</th><th>Touches</th><th>Depends on</th><th>Size</th><th>Done when</th></tr></thead><tbody><tr><td>70</td><td>✅ <strong>Done 2026-10-29 (codex)</strong> — <strong>Agent display tools</strong> (AU-01 to AU-07): reveal and select in the agent’s link group, results in the table and graph views, the agent’s canvas of typed content (never agent HTML or scripts), marked as the agent’s, no focus stealing, budgeted and rate-limited</td><td><code>editors/agent</code>, <code>services/llm</code> (tools, policy), ext-api (links), shell</td><td>59, 60</td><td>M</td><td>an agent shows a subgraph selected in its own marked group while a person types elsewhere, without taking focus; a flood of display calls is rate-limited</td></tr><tr><td>71</td><td>✅ <strong>Done 2026-10-29 (codex)</strong> — <strong>Private terminal input</strong> (AU-20 to AU-24): keystrokes never shared, logged, previewed or given to agents; password prompts detected from the line discipline (canonical, echo off) with a 🔒 marker and a blank overview card; Pause sharing per terminal</td><td><code>services/terminal-pty</code>, <code>services/terminal</code>, <code>editors/terminal*</code>, the overview</td><td>—</td><td>S</td><td><code>sudo -k; sudo true</code> in a terminal shows 🔒 and no typed characters to the overview, an agent or a follower; unit tests for the mode detection</td></tr><tr><td>72</td><td><strong>Share cursor, pointer and keyboard</strong> (AU-10 to AU-14): two buttons, off by default, a visible indicator and one Stop sharing command; follow mode; the keyboard grant after accounts</td><td>presence (server hub), shell, editors, graph view</td><td>71; accounts (SW-02) for the keyboard grant</td><td>M</td><td>position-sharing slice done and validated 2026-10-30 (codex), with all gates, the CI/default-graph browser matrix and an inspected two-window desktop check: opt-in carets/selections, 2D graph pointers, follow, indicator, Stop and requested announcement; AU-12 keyboard grant remains after accounts</td></tr><tr><td>73</td><td><strong>herdr adapter</strong> (AU-30 to AU-32), optional and off by default: herdr panes in the terminal panel, working/blocked/idle states on tabs and in the overview, “Run agent here”</td><td>a new extension, the terminal panel</td><td>71</td><td>M</td><td>with herdr installed, a pane attaches, shows its state and survives closing Moonkale; without herdr the extension only says so</td></tr></tbody></table></div>
+<h2 id="a-first-wave">A first wave<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#a-first-wave" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>How to run it (assignments, prompts, and what collides on one machine) is <a href="../problems/Running-Several-Agents" class="internal alias" data-slug="problems/Running-Several-Agents">Running Several Agents</a>.</p>
+<p>Six agents with no shared hot spot:</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>Agent</th><th>Package</th><th>Hot spot held</th></tr></thead><tbody><tr><td>codex</td><td>WP-01 → 02</td><td>—</td></tr><tr><td>A</td><td>WP-04 → 05</td><td><code>graph-render</code></td></tr><tr><td>B</td><td>WP-08 (until Mistral is back)</td><td><code>ext-api/flow.rs</code></td></tr><tr><td>C</td><td>WP-12 → 13</td><td><code>moonkale-core</code> (from 13 on)</td></tr><tr><td>D</td><td>WP-18</td><td>—</td></tr><tr><td>E</td><td>WP-23 (#15 first: data loss)</td><td>—</td></tr></tbody></table></div>
+<p>Side tasks for any agent between packages: WP-26, WP-27, and reviews.</p>
+<p><strong>Second wave</strong>, when the first merges:</p>
+<ul>
+<li>WP-16 (needs 05 and 12);</li>
+<li>WP-07 (after 04);</li>
+<li>WP-19 → 20;</li>
+<li>WP-14;</li>
+<li>WP-09 (Mistral);</li>
+<li>WP-21 (split).</li>
+</ul>
+<h2 id="what-only-daniel-decides">What only Daniel decides<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#what-only-daniel-decides" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+<p>Only fundamental decisions (<a href="../problems/Running-Several-Agents" class="internal alias" data-slug="problems/Running-Several-Agents">Running Several Agents</a>, “Decisions while agents run”); the coordinator decides the rest. Batched, not blocking. Each package keeps working on its other parts until the answer arrives.</p>
+<p><strong>Open fundamental questions:</strong> none at the moment.</p>
+<p><strong>Decided by the coordinator (2026-10-14), formerly listed here:</strong></p>
+<ul>
+<li><strong>The second wave’s order:</strong> WP-46 sessions, then WP-50 comments, then WP-55 benchmarks, then WP-40 plots, WP-13 pushdown, and WP-37 plates once WP-08 lands. Sessions come first because comments, run records and the memory decision all key by session.</li>
+<li><strong>WP-14’s writes go through the policy gate,</strong> like agent writes: the gate classifies every write, a person’s own edit is allowed without a prompt, and an agent’s is a proposal (SW-23). One mechanism, not two.</li>
+<li><strong>WP-18’s fixture:</strong> a small Unison codebase created in the test from scratch (a handful of definitions, one rename, one dependency chain), not a downloaded one, so the test is hermetic.</li>
+<li><strong>WP-12:</strong> the Supabase study’s rejections become final through review by the coordinator, under the <a href="../research/Scrutiny" class="internal" data-slug="research/Scrutiny">Scrutiny</a> test. Daniel can always overturn an entry.</li>
+</ul>
+<h3 id="wp-26-structural-edits-selection-race-2026-10-17">WP-26 structural-edits selection race (2026-10-17)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#wp-26-structural-edits-selection-race-2026-10-17" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>CI <a href="https://github.com/MathStruct/Moonkale/actions/runs/39050073252/attempts/1" class="external">39050073252 attempt 1<svg aria-hidden="true" class="external-icon" style="max-width:0.8em;max-height:0.8em;" viewBox="0 0 512 512"><path d="M320 0H288V64h32 82.7L201.4 265.4 178.7 288 224 333.3l22.6-22.6L448 109.3V192v32h64V192 32 0H480 320zM32 32H0V64 480v32H32 456h32V480 352 320H424v32 96H64V96h96 32V32H160 32z"></path></svg></a>,
+jobs 117446675535 (attempt 1) and 117449161202 (attempt 2) both passed the first five CodeMirror structural-edits steps, then
+timed out in <code>selectNode</code> while beginning the move test after save/undo/redo.
+A source/index graph refresh can replace the pinned test graph before its click.
+The suite now waits for rendered frames and retries real pointer selection with
+fresh index IDs and coordinates inside the existing 30-second bound; the exact
+selected-node assertion remains. Local browser verification has not been run; three consecutive CI passes remain due.
+Code-view unit tests can run with dioxus-code’s supported <code>DOCS_RS=1</code> asset-generation
+bypass in the read-only registry sandbox; normal browser asset generation still
+requires a writable registry.</p></article><hr/><div class="page-footer"><div class="giscus" data-repo="MathStruct/Moonkale" data-repo-id="R_kgDOUeDr7g" data-category="Announcements" data-category-id="DIC_kwDOUeDr7s4DJXDC" data-mapping="pathname" data-strict="1" data-reactions-enabled="1" data-input-position="bottom" data-light-theme="light" data-dark-theme="dark" data-theme-url="https://mathstruct.org/Moonkale/static/giscus" data-lang="en"></div></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-180" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#rules-for-parallel-work" data-for="rules-for-parallel-work">Rules for parallel work</a></li><li class="depth-0"><a href="#the-packages" data-for="the-packages">The packages</a></li><li class="depth-1"><a href="#lane-a-the-code-editor-codex" data-for="lane-a-the-code-editor-codex">Lane A: the code editor (codex)</a></li><li class="depth-1"><a href="#lane-b-the-graph-engine-and-canvas" data-for="lane-b-the-graph-engine-and-canvas">Lane B: the graph engine and canvas</a></li><li class="depth-1"><a href="#lane-c-flow-editor-and-julia-mistral-from-about-2026-10-31-claude-until-then" data-for="lane-c-flow-editor-and-julia-mistral-from-about-2026-10-31-claude-until-then">Lane C: flow editor and Julia (Mistral from about 2026-10-31; Claude until then)</a></li><li class="depth-1"><a href="#lane-d-data-and-tables" data-for="lane-d-data-and-tables">Lane D: data and tables</a></li><li class="depth-1"><a href="#lane-e-the-code-graph-north-star" data-for="lane-e-the-code-graph-north-star">Lane E: the code graph (North Star)</a></li><li class="depth-1"><a href="#lane-f-platform-security-upkeep" data-for="lane-f-platform-security-upkeep">Lane F: platform, security, upkeep</a></li><li class="depth-1"><a href="#lane-g-publishing" data-for="lane-g-publishing">Lane G: publishing</a></li><li class="depth-1"><a href="#lane-h-knowledge-graphs-rdf-and-layered-memory-proposed" data-for="lane-h-knowledge-graphs-rdf-and-layered-memory-proposed">Lane H: knowledge graphs (RDF and layered memory), proposed</a></li><li class="depth-1"><a href="#lane-i-requests-of-2026-10-14" data-for="lane-i-requests-of-2026-10-14">Lane I: requests of 2026-10-14</a></li><li class="depth-1"><a href="#lane-j-requests-of-2026-10-29-agents-in-the-ui-and-on-the-graph" data-for="lane-j-requests-of-2026-10-29-agents-in-the-ui-and-on-the-graph">Lane J: requests of 2026-10-29 (Agents in the UI and on the Graph)</a></li><li class="depth-0"><a href="#a-first-wave" data-for="a-first-wave">A first wave</a></li><li class="depth-0"><a href="#what-only-daniel-decides" data-for="what-only-daniel-decides">What only Daniel decides</a></li><li class="depth-1"><a href="#wp-26-structural-edits-selection-race-2026-10-17" data-for="wp-26-structural-edits-selection-race-2026-10-17">WP-26 structural-edits selection race (2026-10-17)</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../Home" class="internal">Moonkale — Vault Home</a></li><li><a href="../Status" class="internal">Status</a></li><li><a href="../architecture/Lenticulum-Frontend-Requirements" class="internal">Lenticulum frontend — requirements</a></li><li><a href="../architecture/North-Star" class="internal">North Star — the code graph</a></li><li><a href="../architecture/Version-Control-Requirements" class="internal">Version control — the full frontend requirement list</a></li><li><a href="../decisions/ADR-0025-Sessions-are-the-outermost-state" class="internal">ADR-0025 — Sessions are the outermost state, kept in the state store</a></li><li><a href="../decisions/ADR-0026-Memory-and-the-store" class="internal">ADR-0026 — What lives in memory, what goes to the store, and when</a></li><li><a href="../decisions/ADR-0027-Simple-by-default" class="internal">ADR-0027 — Simple by default (GNOME-like), detailed on request, shortcuts in plain sight</a></li><li><a href="../decisions/ADR-0029-Sophia-stores-the-code-graph" class="internal">ADR-0029 — Sophia stores the code graph; files stay the truth</a></li><li><a href="../editors/3D-Graphs-on-Monitors-and-in-Headsets" class="internal">3D graphs — one flat monitor, or two eyes (stereo and VR headsets)</a></li><li><a href="../editors/Linked-Panels" class="internal">Linked panels — a node's content and its context, together and marked as belonging together</a></li><li><a href="../editors/Math-Delimiters-and-Renderers" class="internal">Math — any delimiter, LaTeX or Typst, error only when both fail</a></li><li><a href="../editors/Overview" class="internal">Overview — every open tab at a glance, then switch</a></li><li><a href="../extensions/Knowledge-Graph-Studio" class="internal">Knowledge Graph Studio — RDF stores and layered memory in Moonkale</a></li><li><a href="../platform/Input-Layouts" class="internal">Input layouts — the five-button mouse, keymap presets, and keyboards other than US</a></li><li><a href="../problems/P-209-CI-startup-stalls-must-retain-evidence" class="internal">P-209 — CI startup stalls must retain evidence</a></li><li><a href="../problems/P-212-Markdown-offset-iterator-can-panic" class="internal">P-212 — Markdown offset iterator can panic</a></li><li><a href="../problems/P-227-Flow-code-generation-could-not-replace-an-existing-file" class="internal">P-227 — Flow code generation could not replace an existing file</a></li><li><a href="../problems/P-228-Pulse-browser-measurement-counted-wraps-as-forward-motion" class="internal">P-228 — Pulse browser measurement counted wraps as forward motion</a></li><li><a href="../problems/P-235-Focus-restoration-needs-the-retained-panel" class="internal">P-235 — Focus restoration needs the retained panel</a></li><li><a href="../problems/Roadmap" class="internal">Roadmap</a></li><li><a href="../problems/Running-Several-Agents" class="internal">Running several agents — who works on what, with which prompt, and what can go wrong on one machine</a></li><li><a href="../research/Debugger-Requirements" class="internal">Debugger — requirements and fit for Moonkale</a></li><li><a href="../research/Plotting-Requirements" class="internal">Plotting — requirements from Plots.jl and Makie up to Tableau</a></li><li><a href="../research/Trading-with-Databento" class="internal">Trading with Databento — requirements for an editor</a></li><li><a href="../research/Use-Cases" class="internal">Use cases — a collection</a></li><li><a href="../research/Workflow-Automation-(n8n,-Windmill)" class="internal">Workflow automation — requirements from n8n and Windmill, under scrutiny</a></li><li><a href="../research/egui-and-Dioxus" class="internal">egui and Dioxus — what egui would bring, what it would cost, and how to compare them cheaply</a></li><li><a href="../testing/Benchmarks" class="internal">Benchmarks — what to measure, how, and against which budget</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>

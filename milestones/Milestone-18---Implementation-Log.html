@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><title>Milestone 18 — Implementation Log</title><meta charset="utf-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com"/><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted Grotesk:wght@400;700&amp;family=Source Sans Pro:ital,wght@0,400;0,600;1,400;1,600&amp;family=IBM Plex Mono:wght@400;600&amp;display=swap"/><link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin="anonymous"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="og:site_name" content="Moonkale"/><meta property="og:title" content="Milestone 18 — Implementation Log"/><meta property="og:type" content="website"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="Milestone 18 — Implementation Log"/><meta name="twitter:description" content="What was done for the library refactor, phase by phase — starting with phase 0, the safety net (CI, layering rules, baseline numbers, app state out of git)."/><meta property="og:description" content="What was done for the library refactor, phase by phase — starting with phase 0, the safety net (CI, layering rules, baseline numbers, app state out of git)."/><meta property="og:image:alt" content="What was done for the library refactor, phase by phase — starting with phase 0, the safety net (CI, layering rules, baseline numbers, app state out of git)."/><meta property="og:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:url" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta name="twitter:image" content="https://mathstruct.org/Moonkale/static/og-image.png"/><meta property="og:image:type" content="image/.png"/><meta property="twitter:domain" content="mathstruct.org/Moonkale"/><meta property="og:url" content="https://mathstruct.org/Moonkale/milestones/Milestone-18---Implementation-Log"/><meta property="twitter:url" content="https://mathstruct.org/Moonkale/milestones/Milestone-18---Implementation-Log"/><link rel="icon" href="../static/icon.png"/><meta name="description" content="What was done for the library refactor, phase by phase — starting with phase 0, the safety net (CI, layering rules, baseline numbers, app state out of git)."/><meta name="generator" content="Quartz"/><link href="../index.css" rel="stylesheet" type="text/css" data-persist="true"/><link href="https://cdn.jsdelivr.net/npm/node-tikzjax@1.0.5/css/fonts.css" rel="stylesheet" type="text/css" data-persist="true"/><style>.expand-button {
+  position: absolute;
+  display: flex;
+  float: right;
+  padding: 0.4rem;
+  margin: 0.3rem;
+  right: 0;
+  color: var(--gray);
+  border-color: var(--dark);
+  background-color: var(--light);
+  border: 1px solid;
+  border-radius: 5px;
+  opacity: 0;
+  transition: 0.2s;
+}
+.expand-button > svg {
+  fill: var(--light);
+  filter: contrast(0.3);
+}
+.expand-button:hover {
+  cursor: pointer;
+  border-color: var(--secondary);
+}
+.expand-button:focus {
+  outline: 0;
+}
+
+pre:hover > .expand-button {
+  opacity: 1;
+  transition: 0.2s;
+}
+
+#mermaid-container {
+  position: fixed;
+  contain: layout;
+  z-index: 999;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: none;
+  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.5);
+}
+#mermaid-container.active {
+  display: inline-block;
+}
+#mermaid-container > #mermaid-space {
+  border: 1px solid var(--lightgray);
+  background-color: var(--light);
+  border-radius: 5px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: 80vh;
+  width: 80vw;
+  overflow: hidden;
+}
+#mermaid-container > #mermaid-space > .mermaid-content {
+  position: relative;
+  transform-origin: 0 0;
+  transition: transform 0.1s ease;
+  overflow: visible;
+  min-height: 200px;
+  min-width: 200px;
+}
+#mermaid-container > #mermaid-space > .mermaid-content pre {
+  margin: 0;
+  border: none;
+}
+#mermaid-container > #mermaid-space > .mermaid-content svg {
+  max-width: none;
+  height: auto;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--light);
+  border: 1px solid var(--lightgray);
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 2;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--lightgray);
+  background: var(--light);
+  color: var(--dark);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-family: var(--bodyFont);
+  transition: all 0.2s ease;
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:hover {
+  background: var(--lightgray);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:active {
+  transform: translateY(1px);
+}
+#mermaid-container > #mermaid-space > .mermaid-controls .mermaid-control-button:nth-child(2) {
+  width: auto;
+  padding: 0 12px;
+  font-size: 14px;
+}
+/*# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiL2hvbWUvcnVubmVyL3dvcmsvTW9vbmthbGUvTW9vbmthbGUvc2l0ZS8ucXVhcnR6L3F1YXJ0ei9jb21wb25lbnRzL3N0eWxlcyIsInNvdXJjZXMiOlsibWVybWFpZC5pbmxpbmUuc2NzcyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBR0Y7RUFDRTs7O0FBS0Y7RUFDRTtFQUNBOzs7QUFJSjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7O0FBRUE7RUFDRTs7QUFHRjtFQUNFO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTs7QUFHRjtFQUNFO0VBQ0E7O0FBSUo7RUFDRTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBOztBQUVBO0VBQ0U7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTtFQUNBO0VBQ0E7RUFDQTs7QUFFQTtFQUNFOztBQUdGO0VBQ0U7O0FBSUY7RUFDRTtFQUNBO0VBQ0EiLCJzb3VyY2VzQ29udGVudCI6WyIuZXhwYW5kLWJ1dHRvbiB7XG4gIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgZGlzcGxheTogZmxleDtcbiAgZmxvYXQ6IHJpZ2h0O1xuICBwYWRkaW5nOiAwLjRyZW07XG4gIG1hcmdpbjogMC4zcmVtO1xuICByaWdodDogMDsgLy8gTk9URTogcmlnaHQgd2lsbCBiZSBzZXQgaW4gbWVybWFpZC5pbmxpbmUudHNcbiAgY29sb3I6IHZhcigtLWdyYXkpO1xuICBib3JkZXItY29sb3I6IHZhcigtLWRhcmspO1xuICBiYWNrZ3JvdW5kLWNvbG9yOiB2YXIoLS1saWdodCk7XG4gIGJvcmRlcjogMXB4IHNvbGlkO1xuICBib3JkZXItcmFkaXVzOiA1cHg7XG4gIG9wYWNpdHk6IDA7XG4gIHRyYW5zaXRpb246IDAuMnM7XG5cbiAgJiA+IHN2ZyB7XG4gICAgZmlsbDogdmFyKC0tbGlnaHQpO1xuICAgIGZpbHRlcjogY29udHJhc3QoMC4zKTtcbiAgfVxuXG4gICY6aG92ZXIge1xuICAgIGN1cnNvcjogcG9pbnRlcjtcbiAgICBib3JkZXItY29sb3I6IHZhcigtLXNlY29uZGFyeSk7XG4gIH1cblxuICAmOmZvY3VzIHtcbiAgICBvdXRsaW5lOiAwO1xuICB9XG59XG5cbnByZSB7XG4gICY6aG92ZXIgPiAuZXhwYW5kLWJ1dHRvbiB7XG4gICAgb3BhY2l0eTogMTtcbiAgICB0cmFuc2l0aW9uOiAwLjJzO1xuICB9XG59XG5cbiNtZXJtYWlkLWNvbnRhaW5lciB7XG4gIHBvc2l0aW9uOiBmaXhlZDtcbiAgY29udGFpbjogbGF5b3V0O1xuICB6LWluZGV4OiA5OTk7XG4gIGxlZnQ6IDA7XG4gIHRvcDogMDtcbiAgd2lkdGg6IDEwMHZ3O1xuICBoZWlnaHQ6IDEwMHZoO1xuICBvdmVyZmxvdzogaGlkZGVuO1xuICBkaXNwbGF5OiBub25lO1xuICBiYWNrZHJvcC1maWx0ZXI6IGJsdXIoNHB4KTtcbiAgYmFja2dyb3VuZDogcmdiYSgwLCAwLCAwLCAwLjUpO1xuXG4gICYuYWN0aXZlIHtcbiAgICBkaXNwbGF5OiBpbmxpbmUtYmxvY2s7XG4gIH1cblxuICAmID4gI21lcm1haWQtc3BhY2Uge1xuICAgIGJvcmRlcjogMXB4IHNvbGlkIHZhcigtLWxpZ2h0Z3JheSk7XG4gICAgYmFja2dyb3VuZC1jb2xvcjogdmFyKC0tbGlnaHQpO1xuICAgIGJvcmRlci1yYWRpdXM6IDVweDtcbiAgICBwb3NpdGlvbjogZml4ZWQ7XG4gICAgdG9wOiA1MCU7XG4gICAgbGVmdDogNTAlO1xuICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlKC01MCUsIC01MCUpO1xuICAgIGhlaWdodDogODB2aDtcbiAgICB3aWR0aDogODB2dztcbiAgICBvdmVyZmxvdzogaGlkZGVuO1xuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRlbnQge1xuICAgICAgcG9zaXRpb246IHJlbGF0aXZlO1xuICAgICAgdHJhbnNmb3JtLW9yaWdpbjogMCAwO1xuICAgICAgdHJhbnNpdGlvbjogdHJhbnNmb3JtIDAuMXMgZWFzZTtcbiAgICAgIG92ZXJmbG93OiB2aXNpYmxlO1xuICAgICAgbWluLWhlaWdodDogMjAwcHg7XG4gICAgICBtaW4td2lkdGg6IDIwMHB4O1xuXG4gICAgICBwcmUge1xuICAgICAgICBtYXJnaW46IDA7XG4gICAgICAgIGJvcmRlcjogbm9uZTtcbiAgICAgIH1cblxuICAgICAgc3ZnIHtcbiAgICAgICAgbWF4LXdpZHRoOiBub25lO1xuICAgICAgICBoZWlnaHQ6IGF1dG87XG4gICAgICB9XG4gICAgfVxuXG4gICAgJiA+IC5tZXJtYWlkLWNvbnRyb2xzIHtcbiAgICAgIHBvc2l0aW9uOiBhYnNvbHV0ZTtcbiAgICAgIGJvdHRvbTogMjBweDtcbiAgICAgIHJpZ2h0OiAyMHB4O1xuICAgICAgZGlzcGxheTogZmxleDtcbiAgICAgIGdhcDogOHB4O1xuICAgICAgcGFkZGluZzogOHB4O1xuICAgICAgYmFja2dyb3VuZDogdmFyKC0tbGlnaHQpO1xuICAgICAgYm9yZGVyOiAxcHggc29saWQgdmFyKC0tbGlnaHRncmF5KTtcbiAgICAgIGJvcmRlci1yYWRpdXM6IDZweDtcbiAgICAgIGJveC1zaGFkb3c6IDAgMnB4IDRweCByZ2JhKDAsIDAsIDAsIDAuMSk7XG4gICAgICB6LWluZGV4OiAyO1xuXG4gICAgICAubWVybWFpZC1jb250cm9sLWJ1dHRvbiB7XG4gICAgICAgIGRpc3BsYXk6IGZsZXg7XG4gICAgICAgIGFsaWduLWl0ZW1zOiBjZW50ZXI7XG4gICAgICAgIGp1c3RpZnktY29udGVudDogY2VudGVyO1xuICAgICAgICB3aWR0aDogMzJweDtcbiAgICAgICAgaGVpZ2h0OiAzMnB4O1xuICAgICAgICBwYWRkaW5nOiAwO1xuICAgICAgICBib3JkZXI6IDFweCBzb2xpZCB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodCk7XG4gICAgICAgIGNvbG9yOiB2YXIoLS1kYXJrKTtcbiAgICAgICAgYm9yZGVyLXJhZGl1czogNHB4O1xuICAgICAgICBjdXJzb3I6IHBvaW50ZXI7XG4gICAgICAgIGZvbnQtc2l6ZTogMTZweDtcbiAgICAgICAgZm9udC1mYW1pbHk6IHZhcigtLWJvZHlGb250KTtcbiAgICAgICAgdHJhbnNpdGlvbjogYWxsIDAuMnMgZWFzZTtcblxuICAgICAgICAmOmhvdmVyIHtcbiAgICAgICAgICBiYWNrZ3JvdW5kOiB2YXIoLS1saWdodGdyYXkpO1xuICAgICAgICB9XG5cbiAgICAgICAgJjphY3RpdmUge1xuICAgICAgICAgIHRyYW5zZm9ybTogdHJhbnNsYXRlWSgxcHgpO1xuICAgICAgICB9XG5cbiAgICAgICAgLy8gU3R5bGUgdGhlIHJlc2V0IGJ1dHRvbiBkaWZmZXJlbnRseVxuICAgICAgICAmOm50aC1jaGlsZCgyKSB7XG4gICAgICAgICAgd2lkdGg6IGF1dG87XG4gICAgICAgICAgcGFkZGluZzogMCAxMnB4O1xuICAgICAgICAgIGZvbnQtc2l6ZTogMTRweDtcbiAgICAgICAgfVxuICAgICAgfVxuICAgIH1cbiAgfVxufVxuIl19 */</style><link href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" rel="stylesheet" type="text/css" data-persist="true"/><script src="../prescript.js" type="application/javascript" data-persist="true"></script><script type="application/javascript" data-persist="true">const fetchData = fetch("../static/contentIndex.json").then(data => data.json())</script><link rel="alternate" type="application/rss+xml" title="RSS Feed" href="https://mathstruct.org/Moonkale/index.xml"/></head><body data-slug="milestones/Milestone-18---Implementation-Log"><div id="quartz-root" class="page"><div id="quartz-body"><div class="left sidebar"><h2 class="page-title"><a href=".."><img class="page-title-icon" src="../static/icon.png" alt width="28" height="28"/>Moonkale</a></h2><div class="spacer mobile-only"></div><div class="flex-component" style="flex-direction: row; flex-wrap: nowrap; gap: 1rem;"><div style="flex-grow: 1; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><div class="search"><button class="search-button"><svg role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 19.9 19.7"><title>Search</title><g class="search-path" fill="none"><path stroke-linecap="square" d="M18.5 18.3l-5.4-5.4"></path><circle cx="8" cy="8" r="7"></circle></g></svg><p>Search</p></button><div class="search-container"><div class="search-space"><input autocomplete="off" class="search-bar" name="search" type="text" aria-label="Search for something" placeholder="Search for something"/><div class="search-layout" data-preview="true"></div></div></div></div></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="darkmode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="dayIcon" x="0px" y="0px" viewBox="0 0 35 35" style="enable-background:new 0 0 35 35" xml:space="preserve" aria-label="Dark mode"><title>Dark mode</title><path d="M6,17.5C6,16.672,5.328,16,4.5,16h-3C0.672,16,0,16.672,0,17.5    S0.672,19,1.5,19h3C5.328,19,6,18.328,6,17.5z M7.5,26c-0.414,0-0.789,0.168-1.061,0.439l-2,2C4.168,28.711,4,29.086,4,29.5    C4,30.328,4.671,31,5.5,31c0.414,0,0.789-0.168,1.06-0.44l2-2C8.832,28.289,9,27.914,9,27.5C9,26.672,8.329,26,7.5,26z M17.5,6    C18.329,6,19,5.328,19,4.5v-3C19,0.672,18.329,0,17.5,0S16,0.672,16,1.5v3C16,5.328,16.671,6,17.5,6z M27.5,9    c0.414,0,0.789-0.168,1.06-0.439l2-2C30.832,6.289,31,5.914,31,5.5C31,4.672,30.329,4,29.5,4c-0.414,0-0.789,0.168-1.061,0.44    l-2,2C26.168,6.711,26,7.086,26,7.5C26,8.328,26.671,9,27.5,9z M6.439,8.561C6.711,8.832,7.086,9,7.5,9C8.328,9,9,8.328,9,7.5    c0-0.414-0.168-0.789-0.439-1.061l-2-2C6.289,4.168,5.914,4,5.5,4C4.672,4,4,4.672,4,5.5c0,0.414,0.168,0.789,0.439,1.06    L6.439,8.561z M33.5,16h-3c-0.828,0-1.5,0.672-1.5,1.5s0.672,1.5,1.5,1.5h3c0.828,0,1.5-0.672,1.5-1.5S34.328,16,33.5,16z     M28.561,26.439C28.289,26.168,27.914,26,27.5,26c-0.828,0-1.5,0.672-1.5,1.5c0,0.414,0.168,0.789,0.439,1.06l2,2    C28.711,30.832,29.086,31,29.5,31c0.828,0,1.5-0.672,1.5-1.5c0-0.414-0.168-0.789-0.439-1.061L28.561,26.439z M17.5,29    c-0.829,0-1.5,0.672-1.5,1.5v3c0,0.828,0.671,1.5,1.5,1.5s1.5-0.672,1.5-1.5v-3C19,29.672,18.329,29,17.5,29z M17.5,7    C11.71,7,7,11.71,7,17.5S11.71,28,17.5,28S28,23.29,28,17.5S23.29,7,17.5,7z M17.5,25c-4.136,0-7.5-3.364-7.5-7.5    c0-4.136,3.364-7.5,7.5-7.5c4.136,0,7.5,3.364,7.5,7.5C25,21.636,21.636,25,17.5,25z"></path></svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="nightIcon" x="0px" y="0px" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100" xml:space="preserve" aria-label="Light mode"><title>Light mode</title><path d="M96.76,66.458c-0.853-0.852-2.15-1.064-3.23-0.534c-6.063,2.991-12.858,4.571-19.655,4.571  C62.022,70.495,50.88,65.88,42.5,57.5C29.043,44.043,25.658,23.536,34.076,6.47c0.532-1.08,0.318-2.379-0.534-3.23  c-0.851-0.852-2.15-1.064-3.23-0.534c-4.918,2.427-9.375,5.619-13.246,9.491c-9.447,9.447-14.65,22.008-14.65,35.369  c0,13.36,5.203,25.921,14.65,35.368s22.008,14.65,35.368,14.65c13.361,0,25.921-5.203,35.369-14.65  c3.872-3.871,7.064-8.328,9.491-13.246C97.826,68.608,97.611,67.309,96.76,66.458z"></path></svg></button></div><div style="flex-grow: 0; flex-shrink: 1; flex-basis: auto; order: 0; align-self: center; justify-self: center;"><button class="readermode"><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="readerIcon" fill="currentColor" stroke="currentColor" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round" width="64px" height="64px" viewBox="0 0 24 24" aria-label="Reader mode"><title>Reader mode</title><g transform="translate(-1.8, -1.8) scale(1.15, 1.2)"><path d="M8.9891247,2.5 C10.1384702,2.5 11.2209868,2.96705384 12.0049645,3.76669482 C12.7883914,2.96705384 13.8709081,2.5 15.0202536,2.5 L18.7549359,2.5 C19.1691495,2.5 19.5049359,2.83578644 19.5049359,3.25 L19.5046891,4.004 L21.2546891,4.00457396 C21.6343849,4.00457396 21.9481801,4.28672784 21.9978425,4.6528034 L22.0046891,4.75457396 L22.0046891,20.25 C22.0046891,20.6296958 21.7225353,20.943491 21.3564597,20.9931534 L21.2546891,21 L2.75468914,21 C2.37499337,21 2.06119817,20.7178461 2.01153575,20.3517706 L2.00468914,20.25 L2.00468914,4.75457396 C2.00468914,4.37487819 2.28684302,4.061083 2.65291858,4.01142057 L2.75468914,4.00457396 L4.50368914,4.004 L4.50444233,3.25 C4.50444233,2.87030423 4.78659621,2.55650904 5.15267177,2.50684662 L5.25444233,2.5 L8.9891247,2.5 Z M4.50368914,5.504 L3.50468914,5.504 L3.50468914,19.5 L10.9478955,19.4998273 C10.4513189,18.9207296 9.73864328,18.5588115 8.96709342,18.5065584 L8.77307039,18.5 L5.25444233,18.5 C4.87474657,18.5 4.56095137,18.2178461 4.51128895,17.8517706 L4.50444233,17.75 L4.50368914,5.504 Z M19.5049359,17.75 C19.5049359,18.1642136 19.1691495,18.5 18.7549359,18.5 L15.2363079,18.5 C14.3910149,18.5 13.5994408,18.8724714 13.0614828,19.4998273 L20.5046891,19.5 L20.5046891,5.504 L19.5046891,5.504 L19.5049359,17.75 Z M18.0059359,3.999 L15.0202536,4 L14.8259077,4.00692283 C13.9889509,4.06666544 13.2254227,4.50975805 12.7549359,5.212 L12.7549359,17.777 L12.7782651,17.7601316 C13.4923805,17.2719483 14.3447024,17 15.2363079,17 L18.0059359,16.999 L18.0056891,4.798 L18.0033792,4.75457396 L18.0056891,4.71 L18.0059359,3.999 Z M8.9891247,4 L6.00368914,3.999 L6.00599909,4.75457396 L6.00599909,4.75457396 L6.00368914,4.783 L6.00368914,16.999 L8.77307039,17 C9.57551536,17 10.3461406,17.2202781 11.0128313,17.6202194 L11.2536891,17.776 L11.2536891,5.211 C10.8200889,4.56369974 10.1361548,4.13636104 9.37521067,4.02745763 L9.18347055,4.00692283 L8.9891247,4 Z"></path></g></svg></button></div></div><div class="explorer" data-behavior="link" data-collapsed="collapsed" data-savestate="true" data-data-fns="{&quot;order&quot;:[&quot;filter&quot;,&quot;map&quot;,&quot;sort&quot;],&quot;sortFn&quot;:&quot;(a,b)=>!a.isFolder&amp;&amp;!b.isFolder||a.isFolder&amp;&amp;b.isFolder?a.displayName.localeCompare(b.displayName,void 0,{numeric:!0,sensitivity:\&quot;base\&quot;}):!a.isFolder&amp;&amp;b.isFolder?1:-1&quot;,&quot;filterFn&quot;:&quot;node=>node.slugSegment!==\&quot;tags\&quot;&quot;,&quot;mapFn&quot;:&quot;node=>node&quot;}"><button type="button" class="explorer-toggle mobile-explorer hide-until-loaded" data-mobile="true" aria-controls="explorer-253"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-menu"><line x1="4" x2="20" y1="12" y2="12"></line><line x1="4" x2="20" y1="6" y2="6"></line><line x1="4" x2="20" y1="18" y2="18"></line></svg></button><button type="button" class="title-button explorer-toggle desktop-explorer" data-mobile="false" aria-expanded="true"><h2>Explorer</h2><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><div id="explorer-253" class="explorer-content" aria-expanded="false" role="group"><ul class="explorer-ul overflow" id="list-0"><li class="overflow-end"></li></ul></div><template id="template-file"><li><a href="#"></a></li></template><template id="template-folder"><li><div class="folder-container"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="5 8 14 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="folder-icon"><polyline points="6 9 12 15 18 9"></polyline></svg><div><button class="folder-button"><span class="folder-title"></span></button></div></div><div class="folder-outer"><ul class="content"></ul></div></li></template></div></div><div class="center"><div class="page-header"><div class="popover-hint"><nav class="breadcrumb-container" aria-label="breadcrumbs"><div class="breadcrumb-element"><a href="../">Home</a><p> ❯ </p></div><div class="breadcrumb-element"><a href="../milestones/">milestones</a><p> ❯ </p></div><div class="breadcrumb-element"><a href>Milestone 18 — Implementation Log</a></div></nav><h1 class="article-title">Milestone 18 — Implementation Log</h1><p show-comma="true" class="content-meta"><time datetime="2026-10-03T16:13:02.000Z">Oct 03, 2026</time><span>26 min read</span></p><ul class="tags"><li><a href="../tags/milestone" class="internal tag-link">milestone</a></li><li><a href="../tags/log" class="internal tag-link">log</a></li><li><a href="../tags/refactor" class="internal tag-link">refactor</a></li></ul></div></div><article class="popover-hint"><p>Plan: <a href="../milestones/Milestone-18---Library-Refactor" class="internal alias" data-slug="milestones/Milestone-18---Library-Refactor">Milestone 18 - Library Refactor</a>. One section per phase; renames get a table (old path → new path → why) in the phase that does them.</p>
+<h2 id="phase-0--safety-net-2026-10-01">Phase 0 — Safety net (2026-10-01)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-0--safety-net-2026-10-01" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>1</td><td>Local state before CI: <code>cargo fmt --check</code>, <code>cargo clippy --workspace --all-targets</code>, <code>cargo test --workspace</code></td><td>fmt: 2 files off (<code>sources-sql/src/text.rs</code>, <code>web/src/main.rs</code>, both from the merged audit PRs); clippy: <strong>1 warning</strong> (<code>needless_borrow</code>, <code>text.rs:27</code>); tests: <strong>132 passed, 0 failed, 6 ignored</strong></td><td>fixed both; <code>clippy -D warnings</code> is clean, so CI can be strict from the start. The 6 ignored tests need a live server, hub or sshd (<code>desktop/tests/{hub,remote}.rs</code>, <code>remote/tests/shim.rs</code>)</td></tr><tr><td>2</td><td><code>.github/workflows/ci.yml</code></td><td>three jobs on every branch push and PR: <strong>lint</strong> (rustfmt, layering rules), <strong>test</strong> (<code>cargo test</code>, <code>clippy -D warnings</code>, <code>cargo check -p web --target wasm32-unknown-unknown --features web</code>), <strong>e2e</strong> (fixture, <code>dx serve</code>, six Firefox suites: <code>files rich stores palette shell wiki</code>)</td><td>rust-analyzer is installed as a component because <code>lsp-local/tests/rust_analyzer.rs</code> talks to a real one; clang/libclang for RocksDB’s bindgen and arborium’s C; disk is freed first; <code>CARGO_INCREMENTAL=0</code>, <code>CARGO_PROFILE_DEV_DEBUG=0</code></td></tr><tr><td>3</td><td><code>tools/check-deps.py</code> + <code>tools/deps-allow.txt</code></td><td>the rules of the plan’s “Target shape” as a script over <code>cargo metadata</code>: <strong>29 known violations</strong> listed, grouped by the phase that removes them; the check fails on a new one <strong>and</strong> on a listed one that is fixed, so the list only shrinks</td><td>rules: <code>core</code> depends on no workspace crate; <code>ext-api</code> only on <code>core</code>/<code>lsp</code>/<code>terminal</code>/<code>ext-abi</code>; only apps (and later <code>distribution</code>) depend on drivers or extensions; the shell’s dependency tree holds none of duckdb, lbug, rocksdb, turso, helix-db, redb, rusqlite, wasmtime, reqwest. Evaluated on the default feature set</td></tr><tr><td>4</td><td><code>.moonkale/</code> out of git</td><td><code>history.jsonl</code> and <code>settings.json</code> untracked (<code>git rm --cached</code>, the files stay on disk); <code>.gitignore</code> ignores <code>.moonkale/*</code> except <code>katex.json</code> and <code>extensions/</code></td><td><strong>on another clone</strong>: pulling this commit deletes those two files there (or stops with “would be overwritten” if they changed) — copy them aside first if that machine’s layout or history matters</td></tr><tr><td>5a</td><td>The smoke batch locally (<code>run-all.sh files rich stores palette shell wiki</code>, Firefox, a warm <code>dx serve</code>)</td><td>✅ all six pass in 45 s</td><td>the CI workflow itself is unverified until the branch is pushed</td></tr><tr><td>5</td><td><code>serve.sh</code>: <code>SERVE_WAIT</code></td><td>the first-build wait is configurable (default 240 × 5 s); CI sets 600</td><td>a cold debug build of server + client on a 4-core runner can exceed 20 min</td></tr><tr><td>6</td><td>Baseline numbers</td><td>below</td><td></td></tr><tr><td>7</td><td>First CI run (36914570665)</td><td>lint ✅ (38 s) · e2e ✅ (28 min, cold) · <strong>test ❌</strong> after 54 min: <code>lbug</code>’s build script fetched the <em>latest</em> LadybugDB release (v0.21.2, published that day) and got a 404; its source fallback is broken too</td><td><strong>P-146</strong>: <code>LBUG_VERSION = &quot;0.21.0&quot;</code> pinned in <code>.cargo/config.toml</code></td></tr><tr><td>8</td><td>Second run (36924574219)</td><td>lint ✅ · e2e ✅ (11 min, warm cache) · tests ✅ <strong>132 passed</strong> · <strong>clippy ❌</strong>: the runner’s <code>stable</code> was Rust <strong>1.99</strong> (released 2026-09-28), which adds <code>needless_borrows_for_generic_args</code> (<code>ui/src/history.rs:190</code>); this machine had 1.98.1</td><td>fixed; checked with <code>cargo +1.99.0 clippy</code> (installed next to the default toolchain, which is unchanged). CI stays on <code>stable</code> on purpose: a new release’s lints show up in CI first — fix them then, and run <code>cargo +&lt;new> clippy</code> locally to catch them all in one round</td></tr><tr><td>9</td><td>Third run (36927844507)</td><td>✅ <strong>all green</strong>: lint 35 s · e2e 5 min · test + clippy + wasm 37 min</td><td>phase 0 done. The test job is the slow one (a cold-ish cache for the 1.99 toolchain; later runs should be faster)</td></tr></tbody></table></div>
+<h3 id="baseline-before-any-refactoring">Baseline (before any refactoring)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#baseline-before-any-refactoring" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+<p>Measured on the dev machine (8 cores, 30 GB) unless stated.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>what</th><th>value</th></tr></thead><tbody><tr><td>workspace</td><td>37 crates, 43 600 lines of Rust; <code>ext-api/src/workspace.rs</code> 2 603 lines, 39 public signals, 94 public methods</td></tr><tr><td>tests</td><td>132 Rust tests pass, 6 ignored; 47 browser suites</td></tr><tr><td>clean <code>cargo test --workspace --no-run</code> (no debug info, no incremental — as CI)</td><td><strong>290 s</strong>, 9.6 GB of <code>target/</code></td></tr><tr><td>then <code>cargo clippy --workspace --all-targets</code></td><td>+42 s (11 GB)</td></tr><tr><td>then <code>cargo check -p web</code> for wasm32</td><td>+26 s (11 GB) — so a cold <code>test</code> job is about 6 minutes of compiling here, more on a 4-core runner</td></tr><tr><td>release CI per job (run 36301090886, <code>260927-proto</code>, before Milestone 17)</td><td>Android 28 min · macOS arm64 42 min · Linux 71 min · macOS x86_64 89 min · Windows 98 min · Nix 114 min · Arch 116 min</td></tr><tr><td>release artefacts (<code>260927-proto</code>)</td><td>APK 23 MB · Arch 115 MB · deb 124 MB · tarball 124 MB · AppImage 142 MB · dmg 64/69 MB · msi 53 MB · NSIS 232 MB</td></tr></tbody></table></div>
+<p>Not measured yet: cold open of this repository (needs the desktop app; <code>bench.mjs</code> measures the web build), and the release sizes <em>after</em> Milestone 17 (the next tag will show what the four stores added).</p>
+<h2 id="phase-1--prune-2026-10-02">Phase 1 — Prune (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-1--prune-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>1</td><td>Design stubs out of the code</td><td><strong>24 files removed</strong> — the 21 listed in the plan plus three orphans no module declared (<code>ext-api/src/{host,capability}.rs</code>, <code>llm/src/embed.rs</code>; <code>editors/code/src/{decorations,document}.rs</code> and <code>backend/native.rs</code> were orphans too) — and the crate <strong><code>editors/graph-desktop</code></strong> (36 workspace crates now). Their text moved first: driver designs → <a href="../architecture/Data-Sources" class="internal alias" data-slug="architecture/Data-Sources">Data Sources</a> (“Driver designs not built yet”), the native overlay → <a href="../decisions/ADR-0011-Desktop-graph-surface-strategy" class="internal alias" data-slug="decisions/ADR-0011-Desktop-graph-surface-strategy">ADR-0011 Desktop graph surface strategy</a> (“Plan B, as it was sketched in code”), decorations/document/native backend → <a href="../editors/Code-Editor" class="internal alias" data-slug="editors/Code-Editor">Code Editor</a>, capabilities → <a href="../extensions/Host-API-Reference" class="internal alias" data-slug="extensions/Host-API-Reference">Host API Reference</a></td><td>the one doc example in <code>core/command</code> was the 6th “ignored” test; 5 remain</td></tr><tr><td>2</td><td>Empty features</td><td><code>typedb</code>, <code>falkor</code> (sources-graph), <code>redis</code> (sources-kv), <code>postgres</code> (sources-sql) removed; nothing enabled them</td><td></td></tr><tr><td>3</td><td>P-135, the profile name</td><td>the renderer’s profile is <code>[profile.graph-wasm]</code> (<code>build.sh</code> updated; output byte-identical, 3 870 601 bytes). The <strong>web client</strong> then built with dx’s defaults: <strong>54.9 MB</strong> shipped wasm (62.1 MB raw), against <strong>46.2 MB</strong> in <code>260927-proto</code> (that release predates Milestone 17, so not every byte is the profile). Decided to keep the client size-optimised, but deliberately: its own <code>[profile.wasm-release]</code> with a comment saying why</td><td>with the explicit profile: <strong>46.2 MB</strong> again (46 197 411 bytes vs 46 164 510 in the release), so the whole 8.7 MB difference was the profile, not Milestone 17</td></tr><tr><td>4</td><td>Release name in the binaries</td><td><code>moonkale_core::VERSION</code> = <code>MOONKALE_RELEASE</code> at build time if set and non-empty, else the crate version; used by <code>moonkale-server --version</code>, MCP’s <code>serverInfo</code> and <code>remote::session::VERSION</code> (the directory the server is uploaded to on SSH hosts, so a host now gets the new server with each release). <code>release.yml</code> sets <code>MOONKALE_RELEASE</code> from the tag for every job and passes it through the Arch container’s <code>sudo</code></td><td>verified: <code>0.1.0</code> without, <code>261002-proto</code> with, <code>0.1.0</code> when empty; changing it rebuilds <code>core</code>. The Nix build cannot see it (sandbox) and reports <code>0.1.0</code></td></tr><tr><td>5</td><td>Template READMEs, stale crate docs</td><td><code>api</code>, <code>desktop</code>, <code>ui</code> READMEs point at their crate notes; <code>web</code> got a real README (it had no crate note); crate docs of <code>api</code> (said “no authentication”), <code>ext-api</code> (“Milestone 1 scope”), <code>core</code>, <code>sources</code>, <code>sources-*</code> rewritten to what is built; crate notes <code>core.md</code>, <code>sources.md</code>, <code>sources-graph.md</code>, <code>sources-kv.md</code> updated</td><td></td></tr><tr><td>6</td><td><strong>Issue #16</strong>, Julia/Python symbols</td><td><code>extract::LANGUAGES</code> + <code>extract::reads()</code> — one list for what the walk fetches and what <code>extract_into</code> dispatches; new test <code>julia_and_python_symbols_are_indexed</code> (fails without the fix: no symbols at all)</td><td>the same list also brings <code>.jl</code>/<code>.py</code> text into search</td></tr><tr><td>7</td><td>Checks</td><td>fmt ✅ · layering 29 known, 0 new ✅ · clippy <code>-D warnings</code> on 1.98.1 <strong>and</strong> 1.99.0 ✅ · <strong>133 tests pass</strong>, 5 ignored ✅ · wasm32 check ✅</td><td>CI: see below</td></tr><tr><td>8</td><td>CI (run 36934297024)</td><td>✅ all green: lint 34 s · e2e 9 min · test + clippy + wasm 12 min (warm cache)</td><td>phase 1 done</td></tr></tbody></table></div>
+<h2 id="phase-2--layering-and-extension-points-2026-10-02">Phase 2 — Layering and extension points (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-2--layering-and-extension-points-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>2.1</td><td><strong><code>moonkale-ext-abi</code></strong></td><td><code>ext-host/src/abi.rs</code> moved with <code>git mv</code> to <code>packages/ext-abi</code> (serde only); <code>ext-host</code> re-exports it as <code>abi</code>, so <code>api</code>, <code>desktop</code>, <code>web</code> are unchanged; <code>ext-api</code> and the wordcount guest depend on the types only. CI now also runs <code>cargo test -p moonkale-ext-host --features wasmtime</code> (it loads the wordcount module; the feature is off in the workspace run)</td><td>layering: <code>ext-api → ext-host</code> gone</td></tr><tr><td>2.2</td><td><strong>Sources classify their text queries</strong></td><td><code>moonkale-core::source::risk</code>: <code>Risk { Read, Write, Destructive, Unknown }</code>, <code>classify_sql</code> (<code>git mv</code> of <code>sources-sql/src/text.rs</code>), <code>classify_cypher</code> (from <code>llm::policy</code>), <code>classify(dialect, text)</code>. <code>Source::classify</code> defaults to it; the SQL drivers’ read-only gate calls it; <code>ToolHost::classify</code> lets the workspace host and the server host pass the target source’s answer to <code>Policy::decide_with</code>; MCP asks the source. <code>RemoteSource</code> keeps the default, so the browser’s agent still classifies locally</td><td>layering: <code>llm → sources-sql</code> gone. The hook for DuckDB’s file-reading functions (#2) is now <code>DuckDbSource::classify</code></td></tr><tr><td>2.3</td><td><strong>Source openers</strong></td><td><code>moonkale-core::source::opener</code>: <code>SourceOpener { id, name, shape, matches, open }</code>, <code>Openers</code> (first that applies wins). Each driver crate exports <code>openers()</code>; desktop, web, mobile and the server build the list; it reaches the shell as <code>WorkspaceConfig::openers</code>; the Explorer, the desktop’s <code>open_database</code> and the server’s <code>open_any</code> ask it</td><td><code>ui</code> lost its three driver dependencies: <strong>10 violations fixed</strong> (the shell’s tree no longer reaches duckdb, lbug, rocksdb, turso, helix-db, redb, rusqlite). Deviation: the types are in <code>core</code>, not <code>moonkale-sources</code> (see the plan)</td></tr><tr><td>2.4</td><td><strong>Editor claims</strong></td><td><code>Extension::claims(&amp;Node) -> Option&lt;u8></code>: code editors 10 (any text), markdown/flow/image/table 50. The shell’s <code>contributions()</code> (used wherever it gathers panels) keeps a document panel only from the winning claimant; ties go to the user’s choice; an extension showing a node it does not claim keeps its panel (an SVG’s <em>Source</em>). <code>.skipping(…)</code> and the code editors’ own filters are gone</td><td>side effect, intended: with Markdown or Flow disabled, those files open in the code editor instead of nowhere. <strong>P-147</strong> found by <code>presence.mjs</code> and fixed</td></tr><tr><td>2.5</td><td>Extractor registry</td><td>done in phase 1 (#16) as one list; see the plan</td><td></td></tr><tr><td>—</td><td>Checks</td><td>fmt ✅ · layering <strong>17 known</strong>, 0 new ✅ · clippy <code>-D warnings</code> ✅ · <strong>137 tests pass</strong>, 5 ignored ✅ · wasm32 check ✅ · server feature check ✅ · browser suites: <strong>41 of 42</strong> in the full batch, <code>stores</code> times out in the batch (HelixDB open late in a 40-suite run, P-081 family) and passes alone</td><td><code>graph3d.mjs</code> had been failing since Milestone 17 for a fixture reason, not the renderer: threshold relaxed (commit message)</td></tr><tr><td>—</td><td><strong>P-148</strong></td><td>33 949 build files had slipped into the 2.4 commit through a relative <code>CARGO_TARGET_DIR</code>; caught before pushing, the commits were redone (2.4 and its P-147 fix are now one commit), <code>packages/**/target/</code> is ignored and <code>serve.sh</code> anchors the path</td><td>nothing of it reached GitHub</td></tr><tr><td>—</td><td>CI (run 36943104469)</td><td>✅ all green: lint 27 s · e2e 7 min · test + clippy + wasm + wasmtime 8 min</td><td>phase 2 done</td></tr></tbody></table></div>
+<h2 id="phase-3--the-workspace-as-areas-the-state-interface-2026-10-02">Phase 3 — The <code>Workspace</code> as areas; the state interface (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-3--the-workspace-as-areas-the-state-interface-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>3a</td><td><strong><code>moonkale-state</code></strong> (new crate)</td><td><code>StateStore</code> (<code>get</code>, <code>scan(prefix)</code>, atomic <code>write(Batch)</code> across tables), <code>Key</code> (string and <code>u64</code> parts, byte order = part order), <code>Record</code>/<code>Typed</code> (versioned JSON envelopes: older versions migrate, newer ones are refused), <code>tables</code> (settings, layout, agent sessions, events, snapshots, projects, index — key layouts documented), <code>testing::conformance</code> + <code>persistence</code>. <strong><code>MemoryStore</code> and <code>RedbStore</code> (feature <code>redb</code>) pass</strong>; a store that forgets deletes fails (the suite is not vacuous). CI runs the redb backend</td><td>deviations: a batch instead of transaction objects; no <code>FileStore</code> (nothing uses the store before phase 5) — both in the plan</td></tr><tr><td>3b</td><td><code>workspace.rs</code> → <code>workspace/</code></td><td>one module per area (sources, documents, history, settings, session, remote, processes, extensions; config.rs for the platform types); no API change; same functions before and after (checked by name)</td><td><code>git blame -C</code> follows the code</td></tr><tr><td>3c.1</td><td><strong>Platform services</strong></td><td><code>WorkspaceConfig { folders, processes, persistence, network, runtimes }</code>: <code>FolderAccess</code>, <code>Processes</code>, <code>Persistence</code>, <code>Network</code>, <code>Runtimes</code>; all but <code>FolderAccess</code> are <code>Default</code>; each app builds it in <code>fn workspace_config()</code> (formatted, instead of one line in <code>rsx!</code>)</td><td>the state store joins <code>Persistence</code> in phase 5</td></tr><tr><td>3c.2</td><td><strong><code>moonkale-llm-types</code></strong> (new crate)</td><td><code>types.rs</code>, <code>provider.rs</code>, <code>sessions.rs</code> (git mv) and <code>Class</code>/<code>Decision</code>/<code>ToolOutcome</code>; <code>moonkale-llm</code> re-exports them; <code>ext-api</code> depends on the types only</td><td>layering: <code>ext-api → llm</code> gone; <code>ext-api</code> depends on <code>core</code>, <code>ext-abi</code>, <code>llm-types</code>, <code>lsp</code>, <code>terminal</code></td></tr><tr><td>3c.3</td><td><strong>File marks</strong></td><td><code>vcs_status</code> (git’s letters, read by the shell) → <code>FileMark { letter, class, title }</code> per file in <code>contrib.file_marks</code>, set by any extension; git maps its letters itself; shell CSS generic (<code>mk-tab-mark</code>, <code>mk-mark-dir</code>)</td><td><code>terminal_cwd</code> stays (the argument of <em>New Terminal</em>; <code>Command</code> is <code>Copy</code>), <code>adopt_terminals</code> stays a host channel</td></tr><tr><td>3c.4</td><td><strong>State grouped by area</strong></td><td>41 signals → nine area structs defined next to their methods: <code>sources</code>, <code>docs</code>, <code>history</code>, <code>settings</code>, <code>shell</code>, <code>contrib</code>, <code>session</code>, <code>remote</code>, <code>processes</code>; paths change (<code>ws.sources</code> → <code>ws.sources.open</code>, <code>ws.settings</code> → <code>ws.settings.resolved</code> …), signals and subscriptions do not; <code>workspace/mod.rs</code> is 242 lines</td><td>rewritten by a script (receivers <code>self</code>, <code>ws…</code>, <code>self.ws</code>), then by the compiler’s errors</td></tr><tr><td>—</td><td>Checks</td><td>fmt ✅ · layering <strong>16 known</strong>, 0 new ✅ · clippy <code>-D warnings</code> ✅ · <strong>141 tests pass</strong>, 5 ignored ✅ · wasm32, server, mobile builds ✅ · browser suites <strong>42 of 42</strong> (<code>touch-drag</code> crashed Chromium once in the batch and passed alone)</td><td></td></tr><tr><td>—</td><td>CI (run 36982562935)</td><td>✅ all green: lint 35 s · test + clippy + wasm + wasmtime + redb 5 min · e2e 7 min</td><td>phase 3 done</td></tr><tr><td>—</td><td>Observation</td><td>after ~7.5 h and dozens of suite runs against <strong>one</strong> dev server, <code>agent-server</code>, <code>git</code> and <code>stores</code> began to fail; a fresh server passes them all. Restart the server before a full batch; the server accumulating state across sessions is worth a look of its own (sources and server sessions are never dropped)</td><td></td></tr></tbody></table></div>
+<p>What phase 3 did <strong>not</strong> do, against the plan’s wording: settings are not yet namespaced per extension (the LLM settings stay in <code>Settings</code>; the agent’s types moved out of the engine instead), and services are areas of state with their methods on the <code>Workspace</code> facade rather than separate handles. Per-extension settings come with phase 4’s contributions (and spec <a href="../specifications/030" class="internal" data-slug="specifications/030">030</a>’s strings).</p>
+<h2 id="phase-5-part-1--the-store-comparison-2026-10-02">Phase 5, part 1 — The store comparison (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-5-part-1--the-store-comparison-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>5.1</td><td>Backends behind <code>StateStore</code></td><td><code>SqliteStore</code>, <code>TursoStore</code>, <code>RocksStore</code>, <code>HelixStore</code> (features <code>sqlite</code>, <code>turso</code>, <code>rocksdb</code>, <code>helix</code>) next to <code>RedbStore</code>; <strong>all five pass the conformance suite</strong>. A <code>Durability</code> mode (<code>Durable</code> / <code>Relaxed</code>) where the engine has one</td><td>Turso 0.7: <code>WITHOUT ROWID</code> is behind an experimental flag (a rowid table instead). Helix: a label per table, hex keys, base64 values, an equality index on the key; async engines bridged with their own runtime</td></tr><tr><td>5.2</td><td>Harness <code>examples/compare.rs</code></td><td>create, 1-event and 1000-event appends, replay, settings p50/p99, random gets, reopen, size, <strong>kill -9 mid-write</strong>, second process; <code>COMPARE_ONLY</code>, <code>COMPARE_MODE</code></td><td>every engine kept every batch whole after kill -9, on every platform</td></tr><tr><td>5.3</td><td>Cross-platform <code>state-compare.yml</code></td><td>each backend built alone, clean, release, on Linux/macOS/Windows + the workload; Android cross-build</td><td>Android at API 21 failed for Turso (<code>pwritev</code>) and RocksDB; rerun at API 24 (the app’s <code>min_sdk</code>) pending</td></tr><tr><td>5.4</td><td>Results and recommendation</td><td><a href="../research/State-Store-Comparison" class="internal alias" data-slug="research/State-Store-Comparison">State Store Comparison</a>: <strong>SQLite</strong> recommended, redb runner-up; RocksDB fastest but 6–14 min of C++ per clean build and locks; Turso beta and 22 MB; HelixDB superlinear as key/value (10k events did not finish in 25 min), 64 MB</td><td>decision is Daniel’s (ADR-0014 stays <em>proposed</em>)</td></tr><tr><td>—</td><td>Mistakes along the way</td><td>(1) a first full run died at the 30-min background limit with its output buffered behind <code>tail</code> — all rows lost; per-backend runs to files since. (2) A <code>pkill -f</code> matched my own shell (exit 144) — exact process names only. (3) An edit to the harness silently did not apply (rustfmt had reflowed the lines), so a “relaxed” run measured durable mode; caught by the numbers, edits are now asserted</td><td></td></tr></tbody></table></div>
+<h2 id="phase-5-part-2--the-store-in-use-2026-10-02">Phase 5, part 2 — The store in use (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-5-part-2--the-store-in-use-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>5.5</td><td><strong>ADR-0014 accepted: SQLite</strong> (Daniel: <em>“Do SQL for now.“</em>)</td><td><code>moonkale_state::copy(from, to, tables)</code> makes a later switch a copy (tested SQLite → redb → memory)</td><td></td></tr><tr><td>5.6</td><td><code>Persistence::state</code></td><td><code>StateAccess { get, scan, write }</code> (async); desktop and phone: <code>local_state(SqliteStore)</code> at <code>&lt;config dir>/state.sqlite</code>, relaxed; web: <code>localStorage</code> items <code>moonkale.state/&lt;table>/&lt;hex key></code></td><td>the web client’s store is per browser, which keeps the browser suites isolated</td></tr><tr><td>5.7</td><td><strong>Layouts in the store</strong></td><td><code>LayoutRecord</code> (layout, open documents, active document) per folder in table <code>layout</code>; an old folder file hands its layout over on the first load and loses it on the next save; layout changes no longer write the folder’s <code>.moonkale/settings.json</code></td><td><code>ext-api/tests/state_layout.rs</code>; <code>settings.mjs</code>, <code>phone.mjs</code> read the browser’s store; after a full batch the fixture’s folder file holds only <code>{&quot;editor&quot;:{&quot;markdown_rich&quot;:false}}</code></td></tr><tr><td>5.8</td><td><strong><code>moonkale-state-stores</code></strong> (new crate)</td><td>the engines, the harness and the backend tests moved out of <code>moonkale-state</code> (git mv)</td><td>the layering check caught <code>rusqlite</code> in the shell’s tree through feature unification once <code>ext-api</code> depended on the state crate</td></tr><tr><td>5.9</td><td>HelixDB write conflicts</td><td>with the index, a write overlapping a concurrent read failed with “transaction conflict”; the backend retries (bounded)</td><td>found by the conformance suite</td></tr><tr><td>—</td><td>Checks</td><td>layering <strong>16 known</strong>, 0 new · clippy ✅ · <strong>146 tests</strong>, 5 ignored · <strong>42 of 42</strong> browser suites</td><td>GitHub unreachable from this machine since mid-day (no route to host): commits are local until it is back</td></tr></tbody></table></div>
+<h2 id="phase-5-part-3--the-entity-log-in-the-store-2026-10-02">Phase 5, part 3 — The entity log in the store (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-5-part-3--the-entity-log-in-the-store-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>5.10</td><td><strong><code>Persistence::host</code></strong></td><td>a second <code>StateAccess</code>: the store of the machine that <strong>hosts the open folder</strong>. Desktop and phone: <code>api::client::host_state_routed()</code> — the connected server’s while there is one, else this process’s own <code>state.sqlite</code> (the same switch <code>open_folder</code> makes); web: <code>api::client::host_state()</code>, always the server’s</td><td>layouts stay per machine (<code>Persistence::state</code>), the log goes with the folder: two machines editing one server folder share one log</td></tr><tr><td>5.11</td><td>Server functions <code>api::host_state</code></td><td><code>host_state_get</code> / <code>_scan</code> / <code>_write</code> over the server’s <code>&lt;config dir>/state.sqlite</code>; only table <code>events</code>, only under the id of a folder the server has open; keys and values base64</td><td><code>moonkale_state::Batch</code> got serde; <code>api</code> depends on <code>moonkale-state-stores</code> (sqlite) under <code>server</code> only</td></tr><tr><td>5.12</td><td><strong>One row per event</strong></td><td><code>EventRecord</code> in table <code>events</code>, key <code>str(folder id) · u128(event id)</code> (<code>Key::u128</code>, new): rows scan in log order, the same event twice is one row. <code>record_event</code> stores its event alone instead of rewriting the whole file; <code>compact_history</code> deletes the folded rows and puts the snapshot in one batch; <code>load_history</code> scans the folder’s rows</td><td><code>ext-api/tests/state_history.rs</code>: import, append, compaction, restart, per-folder prefixes</td></tr><tr><td>5.13</td><td><strong>Import</strong></td><td>no rows for the folder → <code>.moonkale/history.jsonl</code> is read and stored in one batch; the file stays where it is and is no longer written. Without a host store everything works as before (the file)</td><td></td></tr><tr><td>5.14</td><td>P-149</td><td><code>decode</code> went through <code>serde_json::Value</code>, which turned the <code>u128</code> event ids into floats; the current version is now decoded straight into its type</td><td>found by the first run of the test</td></tr><tr><td>—</td><td>E2E</td><td><code>history.mjs</code> reads the server’s store as a second process (<code>node:sqlite</code>) and checks that <code>history.jsonl</code> is not written; <code>run-all.sh</code>’s reset deletes the <code>events</code> rows with <code>sqlite3</code> — the multi-process access that was one reason for SQLite</td><td></td></tr><tr><td>—</td><td>Checks</td><td>fmt ✅ · layering <strong>16 known</strong>, 0 new ✅ · clippy <code>-D warnings</code> ✅ · <strong>150 tests pass</strong>, 5 ignored ✅ · wasm32, server, desktop, mobile builds ✅ · browser suites <strong>42 of 42</strong> on a fresh server (in the batch <code>touch-drag</code> crashed Chromium and <code>stores</code>, the last suite, timed out — both pass alone, as after phase 3)</td><td></td></tr></tbody></table></div>
+<h2 id="phase-5-part-4--agent-sessions-in-the-store-2026-10-02">Phase 5, part 4 — Agent sessions in the store (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-5-part-4--agent-sessions-in-the-store-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>5.15</td><td><strong>Local sessions</strong> (the Agent panel’s)</td><td><code>SavedSession</code> is a record of table <code>agent_sessions</code>, key <code>str(folder id) · str(&quot;local&quot;) · str(id)</code>, one row per session, in the folder host’s store; <code>saved_sessions</code> imports <code>.moonkale/agent-sessions/local/*.json</code> once into an empty store; <code>restore</code> reads the row</td><td><code>Workspace::{has_host_state, host_get, host_scan, host_write}</code> for extensions; <code>editors/agent/tests/sessions_store.rs</code></td></tr><tr><td>5.16</td><td><strong>Server sessions</strong></td><td>a head row (<code>title</code>, <code>started</code>) under <code>folder · &quot;server&quot; · id</code>, a row per transcript item under <code>· u64(n)</code> — appended as the turn runs; the finished assistant text and a tool’s outcome <strong>replace</strong> their row (the old log file only appended, so tool outcomes were lost after a restart). <code>.moonkale/agent-sessions/*.jsonl</code> imported once; <code>agent_send</code> loads the folder first so a first new session cannot block the import</td><td>unit test under feature <code>server</code> (not in CI’s <code>cargo test</code>; the browser suite <code>agent-server</code> covers it there)</td></tr><tr><td>5.17</td><td>Host access</td><td><code>host_state</code> admits <code>agent_sessions</code>, only under <code>&quot;local&quot;</code>: a client cannot write the server’s sessions</td><td></td></tr><tr><td>—</td><td>E2E</td><td><code>state.mjs</code>: the suites’ reader of the server’s store (key parts decoded); <code>agents.mjs</code> and <code>agent-server.mjs</code> check the rows and that no session files are written; the reset clears <code>agent_sessions</code> too</td><td>first run: <code>agent-server</code> caught the finished assistant text still going to the old log</td></tr><tr><td>—</td><td>Checks</td><td>fmt ✅ · layering <strong>16 known</strong>, 0 new ✅ · clippy <code>-D warnings</code> ✅ (and <code>api --features server</code>) · <strong>152 tests pass</strong> (151 + the server-feature one), 5 ignored ✅ · browser suites <strong>42 of 42</strong>: 38 in the batch; <code>server</code> (port already in use), <code>touch-drag</code> (Chromium crash), <code>stores</code> (last suite) and <code>agent-server</code> passed alone — <code>agent-server</code> once its listing check accepted earlier runs’ sessions, which the server keeps in memory across suites</td><td></td></tr></tbody></table></div>
+<h2 id="phase-5-part-5--user-settings-in-the-store-2026-10-02">Phase 5, part 5 — User settings in the store (2026-10-02)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-5-part-5--user-settings-in-the-store-2026-10-02" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>5.18</td><td><strong>User settings</strong> (desktop, phone)</td><td><code>UserSettingsRecord</code> (the whole <code>SettingsFile</code>) in table <code>settings</code>, key <code>&quot;user&quot;</code>, of this machine’s store (<code>Persistence::state</code>); the first load imports the platform’s <code>settings.json</code>, after which only the store is written and read — the file stays where it is, <strong>no longer read</strong> (edits to it by hand have no effect)</td><td><code>Persistence::user_settings_in_state</code>; <code>ext-api/tests/state_user_settings.rs</code>: import, save, restart against a changed file</td></tr><tr><td>5.19</td><td>Web unchanged</td><td><code>localStorage[&quot;moonkale.settings&quot;]</code> already is that browser’s store; 14 suites set or read it. Moving it to <code>moonkale.state/…</code> would buy nothing</td><td>the flag is off on the web</td></tr><tr><td>—</td><td>Settings → JSON view</td><td>”User file” → “User settings”</td><td></td></tr><tr><td>—</td><td>Desktop, for real</td><td>the release app on a <strong>copy</strong> of the config (<code>MOONKALE_CONFIG_DIR</code>): the first start logged <em>the user settings moved into the state store</em>, reopened the last folder, restored its layout and two documents, imported its 2 history events; the second start — with <code>reopen_last: false</code> written into the old file — read the store and reopened anyway, imported nothing; the real folder’s <code>.moonkale/</code> was not touched</td><td></td></tr><tr><td>—</td><td>Checks</td><td>fmt ✅ · layering <strong>16 known</strong>, 0 new ✅ · clippy ✅ · wasm32 ✅ · <strong>152 tests</strong>, 5 ignored ✅ (the new one replaces none: 151 + 1 in <code>cargo test --workspace</code>) · browser suites <code>settings</code>, <code>agents</code>, <code>palette</code> ✅ (the web path is unchanged)</td><td></td></tr></tbody></table></div>
+<p>Next: phase 5 is done for the state that exists today; a persisted index (graph, BM25, embeddings) is its own comparison (HelixDB is a candidate there). Then phase 4.</p>
+<h2 id="phase-4--catalogue-out-of-the-shell-server-contributions-2026-10-03">Phase 4 — Catalogue out of the shell; server contributions (2026-10-03)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-4--catalogue-out-of-the-shell-server-contributions-2026-10-03" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>4.1</td><td><strong><code>moonkale-distribution</code></strong> (<code>packages/distribution</code>)</td><td><code>default_extensions()</code> moved out of <code>ui</code>: the shell’s own four come from <code>ui::builtin_extensions()</code>, Graph, Links, Code, Markdown are always in, the rest behind one Cargo feature each (<code>code-native</code>, <code>table</code>, <code>image</code>, <code>terminal</code>, <code>terminal-native</code>, <code>agent</code>, <code>flow</code>, <code>lux</code>, <code>git</code>, <code>history</code>). The apps pass it to the shell. <code>ui</code> depends on <code>core</code>, <code>ext-api</code>, <code>lsp</code>, <code>terminal</code> and Dioxus only — no editor, no <code>api</code>, no <code>server</code> feature</td><td>CI checks <code>-p moonkale-distribution --no-default-features</code>. <code>ui</code> keeps its name until phase 6’s renames</td></tr><tr><td>4.1b</td><td><strong><code>moonkale-code-view</code></strong> (<code>packages/code-view</code>)</td><td>the CodeMirror component, its backend, the LSP manager and the bundle moved out of the Code extension; Markdown’s Source mode depends on the component, not on another extension. <code>editors/code</code> keeps <code>extension.rs</code> and re-exports</td><td><code>packages/js/codemirror</code> builds into <code>code-view/assets/</code> now</td></tr><tr><td>4.2a</td><td><strong>History</strong> → <code>packages/extensions/history</code> (<code>moonkale-ext-history</code>)</td><td>with its CSS (was in <code>shell.css</code>)</td><td>the panel’s code unchanged</td></tr><tr><td>—</td><td>Layering</td><td><strong>16 → 1</strong> known violations (<code>api -> moonkale-ext-git</code>, step 4.3). The shell rule now resolves the shell’s own features (<code>cargo tree -p ui</code>): the workspace-wide resolution blamed <code>ui</code> for <code>reqwest</code>, which Dioxus’s <code>fullstack</code> feature brings when <code>api</code> turns it on for everyone</td><td></td></tr><tr><td>—</td><td>Checks (4.1, 4.2a)</td><td>fmt ✅ · layering <strong>1 known</strong> ✅ · clippy ✅ · wasm32 ✅ · minimum distribution ✅ · <strong>152 tests</strong>, 5 ignored ✅ · browser suites <strong>42 of 42 in one batch</strong> ✅</td><td></td></tr><tr><td>4.2b</td><td><strong>Services</strong></td><td><code>WorkspaceConfig::services</code>: a static list of values whose types the extensions define, found with <code>ws.service::&lt;T>()</code>. Git’s runner is the first: <code>moonkale_ext_git::GitRunner</code> replaces <code>Processes::git</code>, so <code>ext-api</code> no longer knows git; its types (<code>GitRequest</code>, <code>GitResponse</code>, <code>StatusEntry</code>, <code>Commit</code>, the parsers) moved to <code>moonkale-ext-git::types</code></td><td>each app: <code>static SERVICES: [&amp;(dyn Any + Sync); 1] = [&amp;GIT];</code> (an inline <code>&amp;[&amp;GIT]</code> is not promoted to <code>'static</code> through the coercion)</td></tr><tr><td>4.3a</td><td><strong>Spike: a server function in an extension crate</strong></td><td><code>moonkale_ext_git::git_run</code> (<code>#[post(&quot;/api/git&quot;)]</code>, feature <code>server</code>) — the server binary registers it when the crate is linked with that feature, with no line in <code>api</code>: <strong>it works</strong> (<code>git.mjs</code> passes, <code>/api/git</code> answers 200). The client side: <code>moonkale_ext_git::remote</code>, a <code>GitRunner</code> over the same function</td><td><code>moonkale-distribution/server</code> turns on the extensions’ server halves; the apps’ <code>server</code> features include it</td></tr><tr><td>4.3b</td><td><strong><code>moonkale-server-host</code></strong></td><td>the jail (<code>allowed_root</code>, <code>jail_dir</code>) moved out of <code>api</code> into a crate with no dependencies, which server halves use; <code>api::state</code> re-exports it</td><td></td></tr><tr><td>4.3c</td><td><strong>Typst</strong> → Markdown’s server half</td><td><code>moonkale_editor_markdown::compile_typst</code> (<code>POST /api/typst/compile</code>, feature <code>server</code>) and <code>remote_typst</code> (the client’s <code>CompileTypst</code>); <code>api</code> no longer depends on <code>moonkale-typst</code></td><td><code>typst.mjs</code> ✅</td></tr><tr><td>4.3d</td><td><strong>Where a server half lives — decided</strong></td><td><em>A server half one extension owns lives in that extension</em> (git, Typst). <em>A platform service several extensions or the shell use stays in the host</em> (<code>api</code>): the terminal relay (xterm and the native terminal), the LSP relay (the Code editor and Markdown’s Source mode), wasm-extension hosting and presence (the shell), MCP and the LLM relay (external agents; the server’s search index embeds through it), sources and the folder host’s store. <strong>Agent server sessions</strong> are one extension’s, but run on the host’s source registry, its store and the MCP tools — they move when the host offers those as an API (phase 6’s versioned <code>ext-api</code>)</td><td>against the plan’s list, which named all of them: the protocol crates cannot carry their relays (<code>terminal-pty</code> depends on <code>moonkale-terminal</code>, a cycle), and putting a shared relay into one extension would make the other depend on it</td></tr><tr><td>4.4a</td><td><strong>Strings as a contribution</strong> (spec <a href="../specifications/030" class="internal" data-slug="specifications/030">030</a> prep)</td><td><code>Extension::locales()</code> → <code>i18n::Locales</code>: <code>(language tag, Fluent source)</code> pairs, English required; <code>i18n::lookup(locales, lang, key)</code> — language, then its base (<code>de-AT</code> → <code>de</code>), then English. The files are Fluent restricted to simple messages (<code>key = text</code>), so spec 030 swaps in <code>fluent-bundle</code> behind the same files</td><td>no extension ships strings yet; that is spec 030’s work</td></tr><tr><td>4.4b</td><td><strong>Theme tokens in one place</strong></td><td>the workbench palette moved from <code>shell.css</code> to <code>ui/assets/styling/theme.css</code>; the shell sets <code>data-theme</code> from <code>Settings.theme</code> (dark tokens for every value until spec 030 adds light and system). <code>tools/check-colors.py</code> (in CI’s lint job) counts hex colours in our stylesheets outside the theme: <strong>356</strong>, a ceiling in <code>tools/colors-max.txt</code> that may only shrink</td><td><code>shell.mjs</code> checks <code>data-theme</code> and the computed <code>--wb-surface</code>. A first probe read the token before the shell’s stylesheets had loaded (they are inserted after mount) and saw the workbench defaults — the suite waits for the value instead</td></tr><tr><td>4.5a</td><td><strong>The server decides where a secret goes</strong> (audit #1)</td><td><code>api::llm::server_side</code>: a secret goes only to the provider’s built-in endpoint or one listed in <code>MOONKALE_LLM_ENDPOINTS</code>; <code>claude-code</code> ignores the client’s binary path. A refusal is an error to the client (<code>llm_info</code>, <code>llm_status</code>, the socket, server sessions), not a silent fallback to the server’s own provider</td><td>unit test under feature <code>server</code></td></tr><tr><td>4.5b</td><td><strong>No squatting</strong> (audit #4, structural part)</td><td><code>ext-host::Runtime::load</code>: an id belongs to the file that loaded it first; <code>discover</code> lists the user’s config directory before the folder, so a folder’s module cannot take a user-installed module’s id and its grants. Desktop and server share the runtime</td><td><code>an_id_belongs_to_the_file_that_loaded_it_first</code> (wasmtime test, in CI). Fuel/memory limits stay open</td></tr><tr><td>4.5c</td><td><strong>A folder is data, not authority</strong> (audit #8)</td><td><code>SettingsFile::without_authority</code> runs before the merge: a folder’s <code>.moonkale/settings.json</code> may not set a provider or saved agents, <code>allow_writes: true</code>, <code>embeddings: true</code>, permissions, the shell or SSH hosts; it may switch things off and <strong>add</strong> denied tools (merged with the user’s — a folder’s list used to replace them). <code>Settings.ignored_from_folder</code> names what was dropped; Settings shows it. The Extensions panel writes grants to the user scope whatever its switch says</td><td><code>a_folder_has_no_authority</code>; two older tests asserted the opposite (a folder replacing the model and an agent) and were changed</td></tr><tr><td>4.5d</td><td>The UI follows</td><td>the Agent’s “Allow mutating tools” switch is disabled in the Extensions panel’s <em>workspace</em> target (a folder may not decide it). Found by <code>settings.mjs</code>: in the folder scope the click ticked the DOM checkbox while the resolved value stayed <code>false</code>, so Dioxus never reset it and the next click <em>cleared</em> the user’s setting. The suite now plants the folder file directly (the cloned-repository case), checks that the agent still asks and that Settings names <code>policy.allow_writes</code>, then allows writes in the user scope</td><td><code>settings.mjs</code> was the one batch failure: it asserted the old behaviour</td></tr><tr><td>—</td><td>Checks (phase 4)</td><td>fmt ✅ · layering <strong>0</strong> ✅ · colours 356 (ceiling) ✅ · clippy ✅ (also <code>web</code>/<code>api --features server</code>) · wasm32 ✅ · minimum distribution ✅ · <strong>155 tests</strong>, 5 ignored ✅ (+ server-feature and wasmtime tests) · browser suites <strong>42 of 42</strong> (41 in the batch; <code>settings</code> rewritten for 4.5 and passing)</td><td></td></tr><tr><td>—</td><td>Layering</td><td><strong>0</strong> known violations: <code>api</code> no longer depends on the git extension. <code>tools/deps-allow.txt</code> is empty</td><td></td></tr></tbody></table></div>
+<h2 id="phase-6--library-surface-2026-10-03">Phase 6 — Library surface (2026-10-03)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#phase-6--library-surface-2026-10-03" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h2>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>#</th><th>step</th><th>outcome</th><th>notes</th></tr></thead><tbody><tr><td>6.1</td><td><strong><code>moonkale-graph-render</code> standalone</strong></td><td><code>scene::Scene</code> — graph in, events out, no browser: layout, fit, hit-testing, hover/click as <code>scene::Event</code>, which serializes to the wasm module’s own JSON; <code>examples/headless.rs</code> lays out a factor graph; <code>README.md</code> for outside users (git tag)</td><td>depends on no Moonkale crate (it never did); doc test + 2 unit tests</td></tr><tr><td>6.2</td><td><strong>The core model</strong> (<a href="../decisions/ADR-0015-The-core-model" class="internal alias" data-slug="decisions/ADR-0015-The-core-model">ADR-0015 The core model</a>)</td><td>properties on nodes and edges (built); <code>GraphView</code> dropped; content-addressed ids as <code>NodeId::from_content</code> (built); <code>changes_since</code> over <code>subscribe</code>. 38 <code>Node</code>/<code>Edge</code> literals got <code>props: Default::default()</code> by a loop over the compiler’s E0063 errors (native, server, wasm, all driver features)</td><td>the entity log’s and the wire’s shapes are unchanged when <code>props</code> is empty (skipped in serialization); 159 tests</td></tr><tr><td>6.3</td><td><strong><code>moonkale-ext-api</code> versioned</strong></td><td>every public item documented (<code>#![warn(missing_docs)]</code> on the crate, 289 items written; CI builds the docs of <code>core</code>, <code>ext-api</code>, <code>graph-render</code> with <code>-D warnings</code>, which found five stale links); <code>#[non_exhaustive]</code> on <code>PanelContribution</code>, <code>Activity</code>, <code>FileMark</code>, <code>CommandContribution</code>, <code>Manifest</code>, with <code>PanelContribution::new(…)</code> + builders and <code>FileMark::new</code> (20 literals converted by a script); <code>CHANGELOG.md</code> with the compatibility rules and what <code>lib-v1</code> contains; <a href="../extensions/Writing-an-Extension" class="internal alias" data-slug="extensions/Writing-an-Extension">Writing an Extension</a> Part A rewritten (git tag, distribution, services, server halves, state, properties, folder settings)</td><td>browser suites 42 of 42 (41 in the batch; <code>stores</code>, the last, alone — P-150)</td></tr><tr><td>6.5</td><td><strong>Renames and grouping</strong></td><td>five commits, each the move plus only the edits it forces (paths, package names, <code>use</code> paths), so <code>git log --follow</code> and blame keep working; table below</td><td>apps stay in <code>packages/</code> (see below)</td></tr></tbody></table></div>
+<p>| 6.3b | <strong>Tag <code>lib-v1</code></strong> | annotated tag on <code>d38f25f3</code> (CI green), pushed: the first state outside crates may depend on | <code>packages/ext-api/CHANGELOG.md</code> lists what it contains |
+| 6.4 | <strong>Lux → <a href="https://github.com/MathStruct/moonkale-julia" class="external"><code>MathStruct/moonkale-julia</code><svg aria-hidden="true" class="external-icon" style="max-width:0.8em;max-height:0.8em;" viewBox="0 0 512 512"><path d="M320 0H288V64h32 82.7L201.4 265.4 178.7 288 224 333.3l22.6-22.6L448 109.3V192v32h64V192 32 0H480 320zM32 32H0V64 480v32H32 456h32V480 352 320H424v32 96H64V96h96 32V32H160 32z"></path></svg></a></strong> | <code>git subtree split</code> kept its two commits; the new repository (Daniel created it empty on 2026-09-26) got a standalone manifest (<code>moonkale-ext-api</code> by tag <code>lib-v1</code>), README, LICENSE, CI, and tag <code>v0.1.0</code>; it builds and tests on its own against the tag. Here: the crate is gone; the workspace pulls <code>moonkale-ext-lux</code> by git tag <code>v0.1.0</code>; <code>[patch.&quot;https://github.com/MathStruct/Moonkale&quot;] moonkale-ext-api = { path = … }</code> makes it implement <em>this</em> workspace’s <code>Extension</code> (one <code>moonkale-ext-api</code> in <code>Cargo.lock</code>, no git copy of Moonkale); the distribution’s <code>lux</code> feature became <strong><code>julia</code>, off by default</strong>, passed through by the apps (<code>--features julia</code>). <code>serve.sh</code> builds the E2E server with <code>SERVE_FEATURES=julia</code> (default) for <code>flow.mjs</code>; CI checks the distribution with <code>--features julia</code> | the first <code>v0.1.0</code> tag carried a placeholder tagger (<code>x &lt;x></code>) from a leftover <code>-c user.name=x</code> — replaced within a minute by one with Daniel’s identity, before anything used it |</p>
+<h3 id="rename-table-phase-65-2026-10-03">Rename table (phase 6.5, 2026-10-03)<a role="anchor" aria-hidden="true" tabindex="-1" data-no-popover="true" href="#rename-table-phase-65-2026-10-03" class="internal"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a></h3>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="table-container"><table><thead><tr><th>old path</th><th>new path</th><th>crate name</th><th>commit</th><th>why</th></tr></thead><tbody><tr><td><code>packages/ui</code></td><td><code>packages/shell</code></td><td><code>ui</code> → <strong><code>moonkale-shell</code></strong> (<code>ui::</code> → <code>moonkale_shell::</code>)</td><td><code>eb3d81f3</code></td><td>it is the shell, and only the shell, since phase 4.1</td></tr><tr><td><code>packages/api</code></td><td><code>packages/server</code></td><td><code>api</code> → <strong><code>moonkale-server</code></strong> (<code>api::</code> → <code>moonkale_server::</code>)</td><td><code>c7465ee3</code></td><td>it is the server host since phase 4.3. The plan said <code>moonkale-server-host</code>; that name went to the jail crate in 4.3</td></tr><tr><td><code>packages/editors/graph-render</code></td><td><code>packages/graph-render</code></td><td><code>moonkale-graph-render</code> (unchanged)</td><td><code>ed026894</code></td><td>a standalone library (6.1), not an editor</td></tr><tr><td><code>packages/{llm, llm-types, lsp, lsp-local, terminal, terminal-pty, remote, typst, index, trace}</code></td><td><code>packages/services/…</code></td><td>unchanged</td><td><code>26908bf7</code></td><td>the plan’s <code>services/</code> group</td></tr><tr><td><code>packages/sources</code>, <code>sources-sql</code>, <code>sources-graph</code>, <code>sources-kv</code>, <code>project-fs</code></td><td><code>packages/sources/{registry, sql, graph, kv, project-fs}</code></td><td>unchanged</td><td><code>963befb5</code></td><td>the plan’s <code>sources/</code> group</td></tr><tr><td>crate notes <code>ui/ui.md</code>, <code>api/api.md</code></td><td><code>shell/shell.md</code>, <code>server/server.md</code></td><td>—</td><td>with their crates</td><td>a note is named after its crate</td></tr></tbody></table></div>
+<p><strong>Not moved: the apps.</strong> <code>packages/{web,desktop,mobile}</code> stay where they are, not <code>apps/</code> as planned: their paths are baked into <code>packaging/build-release.sh</code>, <code>.github/workflows/release.yml</code>, <code>flake.nix</code>, the PKGBUILD, <code>packages/mobile/build-android.sh</code> and the E2E harness (<code>serve.sh</code>, <code>fixture.sh</code>, <code>run-all.sh</code>), and a mistake in the release paths would show only at the next release tag. Revisit together with a release.</p>
+<p><strong>Commands that changed</strong>: <code>cargo test -p moonkale-shell</code> (was <code>-p ui</code>), <code>cargo … -p moonkale-server --features server</code> (was <code>-p api</code>), <code>packages/graph-render/build.sh</code> (was <code>packages/editors/graph-render/build.sh</code>), <code>MOONKALE_CLAUDE_BIN=packages/services/llm/tests/mock-claude.sh</code> (in <code>serve.sh</code>). Unchanged: <code>cd packages/web &amp;&amp; dx serve</code>, <code>packages/desktop &amp;&amp; dx build …</code>, <code>packages/mobile/build-android.sh</code>, every E2E script. Vault: <a href="../architecture/Project-Structure" class="internal alias" data-slug="architecture/Project-Structure">Project Structure</a> regenerated (layout with fresh line counts, the crate-notes table from the files); 47 current-state notes had their paths replaced by script; history (milestone logs, the Problem Log, prompts, research, ADRs) keeps the paths as they were.</p>
+<p>What phase 6 did <strong>not</strong> do, against the plan: the apps did not move to <code>apps/</code> (above); <code>ext-api</code>’s <code>Workspace</code> is still one facade over nine areas (it is documented and versioned now, not smaller); agent server sessions stay in the host until it offers its registry and store as an API (4.3d).</p>
+<p><strong>Milestone 18 is complete</strong> (phases 0–6; phase 7, documentation, ran in every phase). Next: spec <a href="../specifications/030" class="internal" data-slug="specifications/030">030</a> (languages and themes), on the prepared contribution points.</p></article><hr/><div class="page-footer"><div class="giscus" data-repo="MathStruct/Moonkale" data-repo-id="R_kgDOUeDr7g" data-category="Announcements" data-category-id="DIC_kwDOUeDr7s4DJXDC" data-mapping="pathname" data-strict="1" data-reactions-enabled="1" data-input-position="bottom" data-light-theme="light" data-dark-theme="dark" data-theme-url="https://mathstruct.org/Moonkale/static/giscus" data-lang="en"></div></div></div><div class="right sidebar"><div class="graph"><h3>Graph View</h3><div class="graph-outer"><div class="graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:1,&quot;scale&quot;:1.1,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.3,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:false,&quot;enableRadial&quot;:false}"></div><button class="global-graph-icon" aria-label="Global Graph"><svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 55 55" fill="currentColor" xml:space="preserve"><path d="M49,0c-3.309,0-6,2.691-6,6c0,1.035,0.263,2.009,0.726,2.86l-9.829,9.829C32.542,17.634,30.846,17,29,17
+                s-3.542,0.634-4.898,1.688l-7.669-7.669C16.785,10.424,17,9.74,17,9c0-2.206-1.794-4-4-4S9,6.794,9,9s1.794,4,4,4
+                c0.74,0,1.424-0.215,2.019-0.567l7.669,7.669C21.634,21.458,21,23.154,21,25s0.634,3.542,1.688,4.897L10.024,42.562
+                C8.958,41.595,7.549,41,6,41c-3.309,0-6,2.691-6,6s2.691,6,6,6s6-2.691,6-6c0-1.035-0.263-2.009-0.726-2.86l12.829-12.829
+                c1.106,0.86,2.44,1.436,3.898,1.619v10.16c-2.833,0.478-5,2.942-5,5.91c0,3.309,2.691,6,6,6s6-2.691,6-6c0-2.967-2.167-5.431-5-5.91
+                v-10.16c1.458-0.183,2.792-0.759,3.898-1.619l7.669,7.669C41.215,39.576,41,40.26,41,41c0,2.206,1.794,4,4,4s4-1.794,4-4
+                s-1.794-4-4-4c-0.74,0-1.424,0.215-2.019,0.567l-7.669-7.669C36.366,28.542,37,26.846,37,25s-0.634-3.542-1.688-4.897l9.665-9.665
+                C46.042,11.405,47.451,12,49,12c3.309,0,6-2.691,6-6S52.309,0,49,0z M11,9c0-1.103,0.897-2,2-2s2,0.897,2,2s-0.897,2-2,2
+                S11,10.103,11,9z M6,51c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S8.206,51,6,51z M33,49c0,2.206-1.794,4-4,4s-4-1.794-4-4
+                s1.794-4,4-4S33,46.794,33,49z M29,31c-3.309,0-6-2.691-6-6s2.691-6,6-6s6,2.691,6,6S32.309,31,29,31z M47,41c0,1.103-0.897,2-2,2
+                s-2-0.897-2-2s0.897-2,2-2S47,39.897,47,41z M49,10c-2.206,0-4-1.794-4-4s1.794-4,4-4s4,1.794,4,4S51.206,10,49,10z"></path></svg></button></div><div class="global-graph-outer"><div class="global-graph-container" data-cfg="{&quot;drag&quot;:true,&quot;zoom&quot;:true,&quot;depth&quot;:-1,&quot;scale&quot;:0.9,&quot;repelForce&quot;:0.5,&quot;centerForce&quot;:0.2,&quot;linkDistance&quot;:30,&quot;fontSize&quot;:0.6,&quot;opacityScale&quot;:1,&quot;showTags&quot;:true,&quot;removeTags&quot;:[],&quot;focusOnHover&quot;:true,&quot;enableRadial&quot;:true}"></div></div></div><div class="toc desktop-only"><button type="button" class="toc-header" aria-controls="toc-114" aria-expanded="true"><h3>Table of Contents</h3><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="fold"><polyline points="6 9 12 15 18 9"></polyline></svg></button><ul id="list-1" class="toc-content overflow"><li class="depth-0"><a href="#phase-0--safety-net-2026-10-01" data-for="phase-0--safety-net-2026-10-01">Phase 0 — Safety net (2026-10-01)</a></li><li class="depth-1"><a href="#baseline-before-any-refactoring" data-for="baseline-before-any-refactoring">Baseline (before any refactoring)</a></li><li class="depth-0"><a href="#phase-1--prune-2026-10-02" data-for="phase-1--prune-2026-10-02">Phase 1 — Prune (2026-10-02)</a></li><li class="depth-0"><a href="#phase-2--layering-and-extension-points-2026-10-02" data-for="phase-2--layering-and-extension-points-2026-10-02">Phase 2 — Layering and extension points (2026-10-02)</a></li><li class="depth-0"><a href="#phase-3--the-workspace-as-areas-the-state-interface-2026-10-02" data-for="phase-3--the-workspace-as-areas-the-state-interface-2026-10-02">Phase 3 — The Workspace as areas; the state interface (2026-10-02)</a></li><li class="depth-0"><a href="#phase-5-part-1--the-store-comparison-2026-10-02" data-for="phase-5-part-1--the-store-comparison-2026-10-02">Phase 5, part 1 — The store comparison (2026-10-02)</a></li><li class="depth-0"><a href="#phase-5-part-2--the-store-in-use-2026-10-02" data-for="phase-5-part-2--the-store-in-use-2026-10-02">Phase 5, part 2 — The store in use (2026-10-02)</a></li><li class="depth-0"><a href="#phase-5-part-3--the-entity-log-in-the-store-2026-10-02" data-for="phase-5-part-3--the-entity-log-in-the-store-2026-10-02">Phase 5, part 3 — The entity log in the store (2026-10-02)</a></li><li class="depth-0"><a href="#phase-5-part-4--agent-sessions-in-the-store-2026-10-02" data-for="phase-5-part-4--agent-sessions-in-the-store-2026-10-02">Phase 5, part 4 — Agent sessions in the store (2026-10-02)</a></li><li class="depth-0"><a href="#phase-5-part-5--user-settings-in-the-store-2026-10-02" data-for="phase-5-part-5--user-settings-in-the-store-2026-10-02">Phase 5, part 5 — User settings in the store (2026-10-02)</a></li><li class="depth-0"><a href="#phase-4--catalogue-out-of-the-shell-server-contributions-2026-10-03" data-for="phase-4--catalogue-out-of-the-shell-server-contributions-2026-10-03">Phase 4 — Catalogue out of the shell; server contributions (2026-10-03)</a></li><li class="depth-0"><a href="#phase-6--library-surface-2026-10-03" data-for="phase-6--library-surface-2026-10-03">Phase 6 — Library surface (2026-10-03)</a></li><li class="depth-1"><a href="#rename-table-phase-65-2026-10-03" data-for="rename-table-phase-65-2026-10-03">Rename table (phase 6.5, 2026-10-03)</a></li><li class="overflow-end"></li></ul></div><div class="backlinks"><h3>Backlinks</h3><ul id="list-2" class="overflow"><li><a href="../Home" class="internal">Moonkale — Vault Home</a></li><li><a href="../Status" class="internal">Status</a></li><li><a href="../architecture/Data-Sources" class="internal">Data Sources</a></li><li><a href="../architecture/Project-Structure" class="internal">Project Structure</a></li><li><a href="../decisions/ADR-0014-One-store-for-internal-state" class="internal">ADR-0014 — One store for Moonkale's internal state</a></li><li><a href="../milestones/Milestone-18---Library-Refactor" class="internal">Milestone 18 — Library refactor (plan)</a></li><li><a href="../problems/Problem-Log" class="internal">Problem Log</a></li><li><a href="../problems/Problem-Ranking" class="internal">Problem Ranking</a></li><li><a href="../specifications/README" class="internal">Specifications — small requests and bugs</a></li><li><a href="../testing/Testing-Strategy" class="internal">Testing Strategy</a></li><li class="overflow-end"></li></ul></div></div><footer class><p>Created with <a href="https://quartz.jzhao.xyz/">Quartz v4.5.2</a> © 2026</p><ul><li><a href="https://github.com/MathStruct/Moonkale">GitHub</a></li><li><a href="https://mathstruct.org/">MathStruct</a></li></ul></footer></div></div></body><script type="application/javascript" data-persist="true">document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".obsidian-tabs .tab-button"); if (!btn) return;
+  const root = btn.closest(".obsidian-tabs"); const id = btn.dataset.tab;
+  root.querySelectorAll(":scope > .tab-nav > .tab-button").forEach(b => b.classList.toggle("active", b.dataset.tab === id));
+  root.querySelectorAll(":scope > .tab-panel").forEach(p => p.classList.toggle("active", p.dataset.tab === id));
+});</script><script type="application/javascript" data-persist="true">function n(){let t=this.parentElement;t.classList.toggle("is-collapsed");let e=t.getElementsByClassName("callout-content")[0];if(!e)return;let l=t.classList.contains("is-collapsed");e.style.gridTemplateRows=l?"0fr":"1fr"}function c(){let t=document.getElementsByClassName("callout is-collapsible");for(let e of t){let l=e.getElementsByClassName("callout-title")[0],s=e.getElementsByClassName("callout-content")[0];if(!l||!s)continue;l.addEventListener("click",n),window.addCleanup(()=>l.removeEventListener("click",n));let o=e.classList.contains("is-collapsed");s.style.gridTemplateRows=o?"0fr":"1fr"}}document.addEventListener("nav",c);
+</script><script type="module" data-persist="true">function E(a,e){if(!a)return;function t(o){o.target===this&&(o.preventDefault(),o.stopPropagation(),e())}function n(o){o.key.startsWith("Esc")&&(o.preventDefault(),e())}a?.addEventListener("click",t),window.addCleanup(()=>a?.removeEventListener("click",t)),document.addEventListener("keydown",n),window.addCleanup(()=>document.removeEventListener("keydown",n))}function f(a){for(;a.firstChild;)a.removeChild(a.firstChild)}var m=class{constructor(e,t){this.container=e;this.content=t;this.setupEventListeners(),this.setupNavigationControls(),this.resetTransform()}isDragging=!1;startPan={x:0,y:0};currentPan={x:0,y:0};scale=1;MIN_SCALE=.5;MAX_SCALE=3;cleanups=[];setupEventListeners(){let e=this.onMouseDown.bind(this),t=this.onMouseMove.bind(this),n=this.onMouseUp.bind(this),o=this.onTouchStart.bind(this),r=this.onTouchMove.bind(this),i=this.onTouchEnd.bind(this),s=this.resetTransform.bind(this);this.container.addEventListener("mousedown",e),document.addEventListener("mousemove",t),document.addEventListener("mouseup",n),this.container.addEventListener("touchstart",o,{passive:!1}),document.addEventListener("touchmove",r,{passive:!1}),document.addEventListener("touchend",i),window.addEventListener("resize",s),this.cleanups.push(()=>this.container.removeEventListener("mousedown",e),()=>document.removeEventListener("mousemove",t),()=>document.removeEventListener("mouseup",n),()=>this.container.removeEventListener("touchstart",o),()=>document.removeEventListener("touchmove",r),()=>document.removeEventListener("touchend",i),()=>window.removeEventListener("resize",s))}cleanup(){for(let e of this.cleanups)e()}setupNavigationControls(){let e=document.createElement("div");e.className="mermaid-controls";let t=this.createButton("+",()=>this.zoom(.1)),n=this.createButton("-",()=>this.zoom(-.1)),o=this.createButton("Reset",()=>this.resetTransform());e.appendChild(n),e.appendChild(o),e.appendChild(t),this.container.appendChild(e)}createButton(e,t){let n=document.createElement("button");return n.textContent=e,n.className="mermaid-control-button",n.addEventListener("click",t),window.addCleanup(()=>n.removeEventListener("click",t)),n}onMouseDown(e){e.button===0&&(this.isDragging=!0,this.startPan={x:e.clientX-this.currentPan.x,y:e.clientY-this.currentPan.y},this.container.style.cursor="grabbing")}onMouseMove(e){this.isDragging&&(e.preventDefault(),this.currentPan={x:e.clientX-this.startPan.x,y:e.clientY-this.startPan.y},this.updateTransform())}onMouseUp(){this.isDragging=!1,this.container.style.cursor="grab"}onTouchStart(e){if(e.touches.length!==1)return;this.isDragging=!0;let t=e.touches[0];this.startPan={x:t.clientX-this.currentPan.x,y:t.clientY-this.currentPan.y}}onTouchMove(e){if(!this.isDragging||e.touches.length!==1)return;e.preventDefault();let t=e.touches[0];this.currentPan={x:t.clientX-this.startPan.x,y:t.clientY-this.startPan.y},this.updateTransform()}onTouchEnd(){this.isDragging=!1}zoom(e){let t=Math.min(Math.max(this.scale+e,this.MIN_SCALE),this.MAX_SCALE),n=this.content.getBoundingClientRect(),o=n.width/2,r=n.height/2,i=t-this.scale;this.currentPan.x-=o*i,this.currentPan.y-=r*i,this.scale=t,this.updateTransform()}updateTransform(){this.content.style.transform=`translate(${this.currentPan.x}px, ${this.currentPan.y}px) scale(${this.scale})`}resetTransform(){let t=this.content.querySelector("svg").getBoundingClientRect(),n=t.width/this.scale,o=t.height/this.scale;this.scale=1,this.currentPan={x:(this.container.clientWidth-n)/2,y:(this.container.clientHeight-o)/2},this.updateTransform()}},T=["--secondary","--tertiary","--gray","--light","--lightgray","--highlight","--dark","--darkgray","--codeFont"],y;document.addEventListener("nav",async()=>{let e=document.querySelector(".center").querySelectorAll("code.mermaid");if(e.length===0)return;y||=await import("https://cdnjs.cloudflare.com/ajax/libs/mermaid/11.4.0/mermaid.esm.min.mjs");let t=y.default,n=new WeakMap;for(let r of e)n.set(r,r.innerText);async function o(){for(let s of e){s.removeAttribute("data-processed");let c=n.get(s);c&&(s.textContent=c)}let r=T.reduce((s,c)=>(s[c]=window.getComputedStyle(document.documentElement).getPropertyValue(c),s),{}),i=document.documentElement.getAttribute("saved-theme")==="dark";t.initialize({startOnLoad:!1,securityLevel:"loose",theme:i?"dark":"base",themeVariables:{fontFamily:r["--codeFont"],primaryColor:r["--light"],primaryTextColor:r["--darkgray"],primaryBorderColor:r["--tertiary"],lineColor:r["--darkgray"],secondaryColor:r["--secondary"],tertiaryColor:r["--tertiary"],clusterBkg:r["--light"],edgeLabelBackground:r["--highlight"]}}),await t.run({nodes:e})}await o(),document.addEventListener("themechange",o),window.addCleanup(()=>document.removeEventListener("themechange",o));for(let r=0;r<e.length;r++){let v=function(){let g=l.querySelector("#mermaid-space"),h=l.querySelector(".mermaid-content");if(!h)return;f(h);let w=i.querySelector("svg").cloneNode(!0);h.appendChild(w),l.classList.add("active"),g.style.cursor="grab",u=new m(g,h)},M=function(){l.classList.remove("active"),u?.cleanup(),u=null},i=e[r],s=i.parentElement,c=s.querySelector(".clipboard-button"),d=s.querySelector(".expand-button"),p=window.getComputedStyle(c),L=c.offsetWidth+parseFloat(p.marginLeft||"0")+parseFloat(p.marginRight||"0");d.style.right=`calc(${L}px + 0.3rem)`,s.prepend(d);let l=s.querySelector("#mermaid-container");if(!l)return;let u=null;d.addEventListener("click",v),E(l,M),window.addCleanup(()=>{u?.cleanup(),d.removeEventListener("click",v)})}});
+</script><script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/copy-tex.min.js" type="application/javascript" data-persist="true"></script><script src="../postscript.js" type="module" data-persist="true"></script></html>
