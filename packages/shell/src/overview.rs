@@ -80,7 +80,10 @@ impl Tab {
             id.split(':').next().unwrap_or(&id)
         };
         Self {
-            movable: node.is_some() || ws.links.views.peek().contains_key(&id),
+            // Only graph views currently have a source-backed transfer protocol.
+            // Other followers can be docked locally; held query data is local.
+            movable: node.is_some()
+                || (id.starts_with("graph:") && ws.links.views.peek().contains_key(&id)),
             window: None,
             state: if dirty {
                 t!(ws, L, "overview-unsaved")

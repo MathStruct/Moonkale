@@ -115,3 +115,5 @@ pub mod conflict_model;
 
 /// Metadata shared between windows in one outer session.
 pub mod window_panels;
+
+pub mod result;

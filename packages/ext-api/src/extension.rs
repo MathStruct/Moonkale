@@ -46,6 +46,12 @@ pub trait Extension: 'static {
         Vec::new()
     }
 
+    /// Registered command ids offered in a table result's overflow menu.
+    /// Commands read the focused panel to find the originating result.
+    fn result_commands(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
+
     /// Run one of them. Default: nothing.
     fn run_command(&self, _id: &str, _ws: Workspace) {}
 

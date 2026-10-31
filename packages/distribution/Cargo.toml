@@ -12,8 +12,9 @@ unison = ["dep:moonkale-sources-unison"]
 sophia = ["dep:moonkale-sources-sophia"]
 # Experimental Rust structural edit previews; off by default.
 structural-edits = ["moonkale-editor-graph/structural-edits"]
-default = ["code-native", "table", "image", "terminal", "terminal-native", "agent", "flow", "git", "history"]
+default = ["code-native", "table", "plot", "image", "terminal", "terminal-native", "agent", "flow", "git", "history"]
 code-native = ["dep:moonkale-editor-code-native"]
+plot = ["dep:moonkale-ext-plot"]
 table = ["dep:moonkale-editor-table"]
 image = ["dep:moonkale-editor-image"]
 terminal = ["dep:moonkale-editor-terminal"]
@@ -39,6 +40,7 @@ moonkale-editor-graph = { workspace = true }
 moonkale-editor-markdown = { workspace = true }
 # One feature each.
 moonkale-editor-code-native = { workspace = true, optional = true }
+moonkale-ext-plot = { workspace = true, optional = true }
 moonkale-editor-table = { workspace = true, optional = true }
 moonkale-editor-image = { workspace = true, optional = true }
 moonkale-editor-terminal = { workspace = true, optional = true }

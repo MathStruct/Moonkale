@@ -801,3 +801,12 @@ a group member. Selection, navigation origins and close rules use that ownership
 boundary; the regression opens and closes such a copy while the remote lead and
 local graph remain open. Alias transfers carry an explicit instance flag;
 ordinary document moves do not acquire aliases or remote memberships.
+
+
+WP-40 plot quick look (2026-10-30): plots perform no source I/O, add no dependency,
+and render values only as escaped SVG/text. Preparation caps 50,000 held rows,
+5000 line/scatter marks, 40 histogram bins and 100 bar categories. Labels and
+hover text are bounded; selected row tokens are opaque hashes plus existing
+source-known Ref ids, never paths or URLs. Invalid/nonpositive log values are
+omitted. Plot membership reuses the session's validated LinkView/group metadata;
+result bytes and tooltip values are not persisted or included in window catalogues.

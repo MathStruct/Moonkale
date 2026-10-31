@@ -141,3 +141,11 @@ read-lock backoffs, then fails; it cannot hide a permanently retained file conne
 The shared engine tests also cover Turso, typed dates/vectors, native date keys,
 exact date spelling in versions/undo, rollback, refusals and quoted identifiers.
 All gates and the complete 59-suite browser feature matrix pass.
+
+
+WP-40 (2026-10-30): enabled plot extensions contribute registered actions to the
+result's ⋯ menu. Plot (Ctrl+Alt+D) opens a follower using the latest bounded
+loaded snapshot; its selection reveals the row in the grid, and grid selection
+highlights its point. Source-known node references continue to select graph nodes.
+See [[Plotting Requirements]] and `packages/extensions/plot/plot.md` for marks,
+limits and the partial aggregation fallback.

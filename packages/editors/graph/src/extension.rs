@@ -28,7 +28,13 @@ impl Extension for GraphExtension {
                     .closable(true)
                     .activity(Activity::new("graph", 80, t!(ws, L, "graph-title"))),
             ];
-        for id in ws.links.views.read().keys() {
+        for id in ws
+            .links
+            .views
+            .read()
+            .keys()
+            .filter(|id| id.starts_with("graph:"))
+        {
             panels.push(
                 PanelContribution::new(id.clone(), t!(ws, L, "graph-title"), PanelHome::Right)
                     .closable(true),

@@ -7,6 +7,15 @@ tags: [status, moc]
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
+## Plot quick look (WP-40, 2026-10-30)
+
+✅ Done 2026-10-31. Optional default-on Plot adds a linked SVG
+panel from any held table result, with automatic line/scatter/bar/histogram,
+column/mark controls, linear/log/time axes, equal aspect, zoom/pan, hover and
+keyboard row selection. SQL page bounds are retained and incomplete results are
+marked partial. Database aggregation, publication export, live data and saved
+chart specifications remain later. See [[Plotting Requirements]].
+
 ## Proposals and optimistic text writes (WP-49 first slice, 2026-10-30)
 
 ◐ **Text slice built and validated.** Local agents queue versioned text

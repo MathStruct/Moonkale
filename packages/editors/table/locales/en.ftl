@@ -49,3 +49,5 @@ table-op-prefix = Starts with text
 table-op-null = Is NULL
 
 table-schema-changed = The table columns changed. Refresh to load the new schema.
+
+table-result-actions = Result actions

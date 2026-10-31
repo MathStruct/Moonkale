@@ -49,3 +49,5 @@ table-op-prefix = 文本前缀
 table-op-null = 为空
 
 table-schema-changed = 表的列已更改。请刷新以加载新结构。
+
+table-result-actions = 结果操作

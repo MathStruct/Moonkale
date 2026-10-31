@@ -6,7 +6,7 @@
 .mk-toolbar-more-items .mk-icon-btn { width: auto; justify-content: flex-start; }
 .mk-toolbar-more-items .mk-sr-only { position: static; width: auto; height: auto; clip-path: none; clip: auto; overflow: visible; white-space: normal; margin-left: 8px; }
 .mk-toolbar-more > .mk-toolbar-more-items { max-width: min(85vw, 480px); min-width: 220px; }
-.mk-graph-toolbar .mk-toolbar-more-items, .mk-agent-toolbar .mk-toolbar-more-items, .mk-table-query .mk-toolbar-more-items, .mk-git-head .mk-toolbar-more-items { left: 0; right: auto; }
+.mk-graph-toolbar .mk-toolbar-more-items, .mk-agent-toolbar .mk-toolbar-more-items, .mk-table-query .mk-toolbar-more-items, .mk-git-head .mk-toolbar-more-items, .mk-plot-toolbar .mk-toolbar-more-items { left: 0; right: auto; }
 
 /* Detailed keeps every action in reach at narrow widths too. Session tabs and
    long paths can wrap without pushing actions beyond their panel. */

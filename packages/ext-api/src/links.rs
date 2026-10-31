@@ -167,7 +167,7 @@ impl Workspace {
         {
             return self.links.contents.read().contains_key(panel);
         }
-        if panel.starts_with("graph:") {
+        if panel.starts_with("graph:") || panel.starts_with("plot:") {
             return self.links.views.read().contains_key(panel);
         }
         group

@@ -144,6 +144,11 @@ fn FrameContent(
         }))
     })
     .0;
+    use_context_provider(|| {
+        moonkale_ext_api::result::ResultActions(Rc::new(|ws, panel| {
+            rsx! { crate::shell::ResultCommandMenu { ws, panel } }
+        }))
+    });
     #[cfg(target_arch = "wasm32")]
     use_effect(move || crate::crash::web_labels(&ws.lang()));
     // The command registry (Milestone 7): rebuilt when settings (keybindings,

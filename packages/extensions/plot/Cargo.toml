@@ -1,0 +1,11 @@
+[package]
+name = "moonkale-ext-plot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bounded Rust SVG quick-look plots of table results."
+
+[dependencies]
+dioxus = { workspace = true }
+moonkale-core = { workspace = true }
+moonkale-ext-api = { workspace = true }

@@ -129,6 +129,11 @@ impl moonkale_ext_api::Extension for GuardedExtension {
             .run(|| self.inner.commands(ws))
             .unwrap_or_default()
     }
+    fn result_commands(&self) -> Vec<&'static str> {
+        self.guard
+            .run(|| self.inner.result_commands())
+            .unwrap_or_default()
+    }
     fn run_command(&self, id: &str, ws: moonkale_ext_api::Workspace) {
         self.guard.run(|| self.inner.run_command(id, ws));
     }

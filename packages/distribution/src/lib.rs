@@ -27,6 +27,8 @@ pub fn default_extensions() -> Vec<Box<dyn Extension>> {
     ));
     #[cfg(feature = "table")]
     v.push(Box::new(moonkale_editor_table::TableExtension));
+    #[cfg(feature = "plot")]
+    v.push(Box::new(moonkale_ext_plot::PlotExtension));
     #[cfg(feature = "image")]
     v.push(Box::new(moonkale_editor_image::ImageExtension));
     #[cfg(feature = "terminal")]

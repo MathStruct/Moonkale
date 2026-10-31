@@ -1,9 +1,9 @@
 ---
 title: "Plotting — requirements from Plots.jl and Makie up to Tableau"
-description: Moonkale has no way to plot data. What plotting users need at three levels (a quick plot like Plots.jl, a publication or interactive figure like Makie, a dashboard like Tableau), what fits Moonkale, and a proposal for a Rust plot extension linked to tables, queries, the graph and live runs. Study of 2026-10-14; nothing built.
+description: Quick-look plotting in Moonkale. What plotting users need at three levels (a quick plot like Plots.jl, a publication or interactive figure like Makie, a dashboard like Tableau), what fits Moonkale, and a proposal for a Rust plot extension linked to tables, queries, the graph and live runs. Study of 2026-10-14; WP-40 quick-look implementation of 2026-10-30, done 2026-10-31.
 tags: [research, plotting, visualization, requirements]
 ---
-**Context (2026-10-14):** Moonkale cannot plot. Daniel uses Plots.jl or Makie; others use full Tableau. [[Publishing Sources]] already sketches a Plot panel (`plotters` to SVG or canvas in wasm, no JS charting library), and Lenticulum needs plots beside the graph ([[Lenticulum Frontend Requirements]] LT-17). Requirements come from the public documentation of the tools named, under the [[Scrutiny]] rules.
+**Context (2026-10-14 study):** Moonkale could not plot. Daniel uses Plots.jl or Makie; others use full Tableau. [[Publishing Sources]] already sketches a Plot panel (`plotters` to SVG or canvas in wasm, no JS charting library), and Lenticulum needs plots beside the graph ([[Lenticulum Frontend Requirements]] LT-17). Requirements come from the public documentation of the tools named, under the [[Scrutiny]] rules.
 
 ## Three levels of user
 
@@ -53,3 +53,23 @@ tags: [research, plotting, visualization, requirements]
 - **First step:** PLT-01 to PLT-03 and PLT-06 on table results, which covers the quick look Daniel uses Plots.jl for. Then live plots for Lenticulum (PLT-09), then the declarative spec and export, then dashboards.
 
 Work package: WP-40 in [[Work Packages]].
+
+## WP-40 quick look (2026-10-30)
+
+Implementation in `packages/extensions/plot` (quick look done 2026-10-31):
+PLT-01 supports time/number lines, numeric scatter, category/number summed bars
+and one-number histograms; matrix heatmaps remain later. PLT-02 has those four
+marks; area, uncertainty bands, heatmaps and box/violin remain later. PLT-03 has
+linear/log/UTC time axes, bounded ticks, column labels and equal aspect; the current
+typed-value contract carries no units. PLT-06 has mouse/keyboard inspection and
+selection, zoom/pan, and bidirectional row links through the table's group;
+source-known Ref values additionally select graph nodes. Aggregates select their
+first row with an explicit notice. Full brushing remains PLT-12.
+
+The optional default-on extension adds no rail entry or third-party dependency.
+Rust emits SVG, caps line/scatter drawing at 5000 samples, histogram bins at 40 and
+bar categories at 100, scanning at most 50,000 held rows. PLT-11 uses the permitted
+first-step fallback: client aggregation over loaded pages, clearly marked partial
+when truncated. The plot never reads the rest of a large database. Source-side
+aggregation, saved specifications, live data and publication export remain later.
+Details: `packages/extensions/plot/plot.md`.

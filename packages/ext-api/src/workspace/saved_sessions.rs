@@ -98,7 +98,7 @@ impl SavedWorkspace {
         }
         for (id, view) in &self.link_views {
             if !id_ok(id)
-                || !id.starts_with("graph:")
+                || !(id.starts_with("graph:") || id.starts_with("plot:"))
                 || !subject_ok(&view.detached)
                 || view
                     .camera

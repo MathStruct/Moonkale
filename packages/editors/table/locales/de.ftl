@@ -49,3 +49,5 @@ table-op-prefix = Beginnt mit Text
 table-op-null = Ist NULL
 
 table-schema-changed = Die Tabellenspalten wurden geändert. Zum Laden des neuen Schemas aktualisieren.
+
+table-result-actions = Ergebnisaktionen

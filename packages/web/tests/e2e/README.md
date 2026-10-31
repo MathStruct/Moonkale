@@ -830,3 +830,16 @@ with overview Enter, moves a source-backed card here by actual mouse drag/drop, 
 graph and checks outer-session isolation. Remote cards intentionally use a
 metadata/icon fallback. The existing `session.mjs` also exercises Firefox's
 native mouse drag and the fallback Move it here banner.
+
+
+### Plot quick look (WP-40)
+
+`plot.mjs` (CI smoke, `run-all.sh plot`) opens real SQLite and DuckDB fixtures and
+checks one-action chart defaults, UTC/log axes, tooltips, bidirectional linked row
+selection, keyboard inspection and selection, wheel/keyboard zoom and mouse pan.
+It also checks 5000-point sampling of a 50,000-row query. Run-all seeds the
+million-row DuckDB fixture in the disposable root, using cargo's normal target
+directory when CARGO_TARGET_DIR is unset. `plot-million.json` records elapsed
+plot-to-paint time, DOM marks, partial status, Wasm memory and browser heap before
+and after collection; the loaded-page histogram must finish within ten seconds,
+draw at most 40 bins, remain below 128 MiB Wasm memory and issue no source query.

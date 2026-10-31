@@ -56,6 +56,7 @@ fn dialect_name(d: Option<TextDialect>) -> &'static str {
 #[component]
 pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let source_id = node.source.clone();
+    let instance = use_hook(|| moonkale_ext_api::links::panel_instance(ws.content_panel(node.id)));
     // Every dialect the source answers, its main one first (a Sophia store
     // offers `sql` and `query`); one button each when there are several.
     let dialects: Vec<&'static str> = ws
@@ -267,6 +268,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                     primary: rsx! {                 button { class: "mk-btn", disabled: running(), onclick: moonkale_ext_api::crash::event({ let run = run.clone(); move |_| run() }),
                     if running() { {t!(ws, L, "table-running")} } else { {t!(ws, L, "table-run")} }
                 } },
+                moonkale_ext_api::result::ResultMenu {ws,panel:instance.clone()}
                 if dialects.len() > 1 {
                     div { class: "mk-table-dialects", role: "group",
                         for d in dialects.iter().copied() {
@@ -288,6 +290,11 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                 }
                 }
             }
+            }
+            if agent_result {
+                details {class:"mk-table-result-menu",summary {"aria-label":t!(ws,L,"table-result-actions"),"⋯"}
+                    moonkale_ext_api::result::ResultMenu {ws,panel:instance.clone()}
+                }
             }
             if !row_refusal.read().is_empty() { p { class: "mk-table-readonly", role: "status", "{row_refusal}" } }
             div { class: "mk-table-grid-host",
@@ -403,7 +410,60 @@ fn ResultGrid(
     });
     let live_table = use_memo({
         let authoritative = context.is_some();
-        move || authoritative.then(|| crate::browse::table(&editing.page.read()))
+        move || {
+            authoritative.then(|| {
+                let page = editing.page.read();
+                let mut table = crate::browse::table(&page);
+                table.truncated |= *browse.skipped.read() > 0
+                    || crate::browse::outside_filter(
+                        &page,
+                        &browse.query.read(),
+                        &editing.pinned.read(),
+                    );
+                table
+            })
+        }
+    });
+    moonkale_ext_api::crash::use_effect({
+        let result = result.clone();
+        move || {
+            let table = live_table.read().clone();
+            let latest = table
+                .map(|table| {
+                    Rc::new(QueryResult {
+                        table: Some(table),
+                        nodes: result.0.nodes.clone(),
+                        edges: result.0.edges.clone(),
+                        truncated: result.0.truncated,
+                    })
+                })
+                .unwrap_or_else(|| result.0.clone());
+            let same = ws
+                .links
+                .results
+                .peek()
+                .get(&owner)
+                .is_some_and(|r| Rc::ptr_eq(r, &latest) || **r == *latest);
+            if !same {
+                let mut ws = ws;
+                ws.links.results.with_mut(|r| {
+                    r.insert(owner, latest);
+                });
+            }
+        }
+    });
+    let row_ids = use_memo({
+        let result = result.clone();
+        move || {
+            let live = live_table.read();
+            let table = live.as_ref().unwrap_or_else(|| result.table());
+            table
+                .rows
+                .iter()
+                .enumerate()
+                .map(|(i, r)| moonkale_ext_api::result::row_selection(owner, i, r))
+                .collect::<Vec<_>>()
+        }
     });
     let live_table_guard = live_table.read();
     let table = live_table_guard.as_ref().unwrap_or_else(|| result.table());
@@ -470,46 +530,46 @@ fn ResultGrid(
         }
     });
 
-    moonkale_ext_api::crash::use_effect({
-        let result = result.clone();
-        move || {
-            let subject = ws.link_subject(&instance.read());
-            if let Some(subject) = subject {
-                if let Some(id) = subject.selection.first() {
-                    let row = result.table().rows.iter().position(|row| {
-                        row.iter().any(
-                            |v| matches!(v, Value::Ref { node, .. } if node.to_string() == *id),
-                        )
-                    });
-                    if let Some(row) = row {
-                        if let Some(pos) = order.peek().iter().position(|i| *i == row) {
-                            if cursor.peek().is_none_or(|(current, _)| current != pos) {
-                                cursor.set(Some((pos, 0)));
-                            }
-                        }
+    moonkale_ext_api::crash::use_effect(move || {
+        if let Some(subject) = ws.link_subject(&instance.read()) {
+            let has_row = subject.selection.iter().any(|id| id.starts_with("row:"));
+            let row = row_ids.read().iter().position(|ids| {
+                if has_row {
+                    ids.first().is_some_and(|id| subject.selection.contains(id))
+                } else {
+                    ids.iter().skip(1).any(|id| subject.selection.contains(id))
+                }
+            });
+            if let Some(pos) = row.and_then(|row| order.peek().iter().position(|i| *i == row)) {
+                if cursor.peek().is_none_or(|(current, _)| current != pos) {
+                    cursor.set(Some((pos, 0)));
+                    if let Some(el) = grid_el.peek().clone() {
+                        let top = pos as f64 * ROW_H;
+                        moonkale_ext_api::crash::spawn(async move {
+                            let _ = el
+                                .scroll(
+                                    dioxus::html::geometry::PixelsVector2D::new(0.0, top),
+                                    ScrollBehavior::Instant,
+                                )
+                                .await;
+                        });
                     }
                 }
             }
         }
     });
-    moonkale_ext_api::crash::use_effect({
-        let result = result.clone();
-        move || {
-            if let Some((pos, _)) = *cursor.read() {
-                if let Some(row) = order
-                    .peek()
-                    .get(pos)
-                    .and_then(|i| result.table().rows.get(*i))
-                {
-                    let selection = row
-                        .iter()
-                        .filter_map(|v| match v {
-                            Value::Ref { node, .. } => Some(node.to_string()),
-                            _ => None,
-                        })
-                        .collect();
-                    ws.select_linked(&instance.peek(), selection);
-                }
+    moonkale_ext_api::crash::use_effect(move || {
+        let identities = row_ids.read();
+        if browse.reposition.peek().is_some() {
+            return;
+        }
+        if let Some((pos, _)) = *cursor.read() {
+            if let Some(ids) = order
+                .peek()
+                .get(pos)
+                .and_then(|i| identities.get(*i).cloned())
+            {
+                ws.select_linked(&instance.peek(), ids);
             }
         }
     });

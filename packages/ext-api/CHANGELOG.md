@@ -1,5 +1,11 @@
 # Changelog — the library crates
 
+## Unreleased — plot results (WP-40, 2026-10-30)
+
+- `Extension::result_commands` defaults empty and offers registered command ids in table result menus. The shell supplies `result::ResultActions`; standalone hosts can omit it.
+- `result::row_selection` adds snapshot row tokens alongside source-known node references for linked tables and plots. Plot followers reuse `LinkView`; saved-session validation accepts the `plot:` view prefix.
+
+
 ## Unreleased — session windows (WP-59/60, 2026-10-30)
 
 - `SessionMessage` adds bounded window catalogues, group deltas, panel focus/move requests and linked-instance transfer acknowledgements. Exhaustive matches must handle the new variants. The outer-session envelope still scopes every message.

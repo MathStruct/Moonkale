@@ -123,3 +123,99 @@ async fn independent_group_navigation_pin_unlink_and_shared_content_close() {
     })
     .await;
 }
+
+#[test]
+fn plot_follower_shares_snapshot_row_and_authoritative_node_selection() {
+    use moonkale_core::{Node, NodeId, NodeKind, SourceId, Value, Version};
+    use moonkale_ext_api::links::{Follow, LinkView, Role, Subject};
+    let mut dom = VirtualDom::new(app);
+    dom.rebuild_in_place();
+    let (mut ws, _) = SETUP.with(|s| s.borrow_mut().take()).unwrap();
+    dom.in_scope(ScopeId::ROOT, || {
+        let owner = NodeId::fresh("plot-table");
+        let target = NodeId::fresh("plot-row-node");
+        ws.docs.views.with_mut(|all| {
+            all.push(Node {
+                id: owner,
+                source: SourceId::new("test"),
+                label: "Result".into(),
+                native_key: "table:result".into(),
+                kind: NodeKind::Table,
+                content: None,
+                version: Version(0),
+                props: Default::default(),
+            })
+        });
+        let lead = ws.content_panel(owner);
+        ws.links.views.with_mut(|views| {
+            for panel in ["plot:test", "graph:test"] {
+                views.insert(
+                    panel.into(),
+                    LinkView {
+                        camera: None,
+                        detached: Subject::new(owner),
+                    },
+                );
+            }
+        });
+        ws.link_panel("plot:test", &lead, false);
+        ws.link_panel("graph:test", &lead, false);
+        assert!(ws
+            .panel_group("plot:test")
+            .unwrap()
+            .members
+            .iter()
+            .any(|(id, r, f)| id == "plot:test" && *r == Role::Follower && *f == Follow::Group));
+        let row = vec![
+            Value::Float(3.0),
+            Value::Ref {
+                node: target,
+                label: "row".into(),
+            },
+        ];
+        let ids = moonkale_ext_api::result::row_selection(owner, 1, &row);
+        assert!(ids[0].starts_with("row:"));
+        let table = moonkale_core::Table {
+            columns: vec!["value".into(), "node".into()],
+            rows: vec![vec![Value::Null], row.clone()],
+            truncated: false,
+        };
+        assert_eq!(
+            moonkale_ext_api::result::selected_row(owner, &table, &ids),
+            Some(1)
+        );
+        assert_eq!(
+            moonkale_ext_api::result::selected_row(target, &table, &ids),
+            None
+        );
+        let mut changed = table.clone();
+        changed.rows[1][0] = Value::Float(4.0);
+        assert_eq!(
+            moonkale_ext_api::result::selected_row(owner, &changed, &ids),
+            None
+        );
+        assert_eq!(ids[1], target.to_string());
+        ws.select_linked("plot:test", ids.clone());
+        assert_eq!(ws.link_subject(&lead).unwrap().selection, ids);
+        assert_eq!(
+            ws.link_subject("graph:test").unwrap().selection[1],
+            target.to_string()
+        );
+        let table_selection = moonkale_ext_api::result::row_selection(owner, 2, &row);
+        assert_ne!(
+            table_selection[0], ids[0],
+            "identical rows retain distinct positions"
+        );
+        ws.select_linked(&lead, table_selection.clone());
+        assert_eq!(
+            ws.link_subject("plot:test").unwrap().selection,
+            table_selection
+        );
+        assert_ne!(
+            moonkale_ext_api::result::row_selection(owner, 1, &[Value::Float(4.0)])[0],
+            ids[0]
+        );
+        ws.close_linked_panel(&lead);
+        assert!(!ws.links.views.peek().contains_key("plot:test"));
+    });
+}

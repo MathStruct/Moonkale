@@ -1980,3 +1980,30 @@ mod background_tests {
         .is_none());
     }
 }
+
+/// Enabled result commands use the same registry, guards and shortcuts as the palette.
+#[component]
+pub(crate) fn ResultCommandMenu(ws: Workspace, panel: String) -> Element {
+    let exts = use_context::<Extensions_>().0;
+    let registry = use_context::<crate::commands::CommandRegistry>();
+    let settings = ws.settings.resolved.read();
+    let ids: Vec<_> = exts
+        .iter()
+        .filter(|e| {
+            settings.extensions.is_enabled(&e.manifest()) && ws.crashes.allows(&e.manifest())
+        })
+        .flat_map(|e| e.result_commands())
+        .collect();
+    rsx! {
+        for id in ids {
+            if let Some(entry) = registry.read().find(id) {
+                { let hint=moonkale_ext_api::command_hint(id,entry.title.clone()); let panel=panel.clone(); rsx! {
+                    button { key: "{id}", class: "mk-result-action", title: "{hint.title}", "data-command": id,
+                        onclick: move |_| { let mut ws=ws; ws.links.focused.set(Some(panel.clone())); crate::commands::run(id,ws); },
+                        "{entry.title} {hint.shortcut}"
+                    }
+                } }
+            }
+        }
+    }
+}

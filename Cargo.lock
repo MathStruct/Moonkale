@@ -7104,6 +7104,7 @@ dependencies = [
  "moonkale-ext-git",
  "moonkale-ext-history",
  "moonkale-ext-lux",
+ "moonkale-ext-plot",
  "moonkale-shell",
  "moonkale-sources-sophia",
  "moonkale-sources-unison",
@@ -7347,6 +7348,15 @@ version = "0.6.0"
 source = "git+https://github.com/MathStruct/moonkale-julia?tag=v0.6.0#66a050473514c9ec8a16bfe63092c1ec1928a42a"
 dependencies = [
  "dioxus",
+ "moonkale-ext-api",
+]
+
+[[package]]
+name = "moonkale-ext-plot"
+version = "0.1.0"
+dependencies = [
+ "dioxus",
+ "moonkale-core",
  "moonkale-ext-api",
 ]
 

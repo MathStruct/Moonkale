@@ -25,6 +25,14 @@ INSERT INTO users(name, score) VALUES ('ann', 1.5), ('bob', NULL), ('cid', 3.25)
 CREATE TABLE tags(id INTEGER PRIMARY KEY, label TEXT);
 CREATE TABLE edit_rows(id INTEGER PRIMARY KEY, name TEXT, score REAL);
 INSERT INTO edit_rows VALUES(1,'original',1.5),(2,'second',2.5);
+CREATE TABLE plot_time(instant DATETIME, value REAL);
+INSERT INTO plot_time VALUES ('2026-10-23T00:00:00Z',1),('2026-10-24T00:00:00Z',10),('2026-10-25T00:00:00Z',100);
+CREATE TABLE plot_scatter(x REAL,y REAL);
+INSERT INTO plot_scatter VALUES (1,2),(10,4),(100,8);
+CREATE TABLE plot_bar(category TEXT,value REAL);
+INSERT INTO plot_bar VALUES ('a',2),('a',3),('b',4);
+CREATE TABLE plot_hist(value REAL);
+INSERT INTO plot_hist VALUES (1),(2),(3),(4),(5);
 CREATE TABLE dates(instant DATETIME, day DATE, text_date TEXT);
 INSERT INTO dates VALUES ('2026-10-23T10:30:00+02:00', '2026-10-23', '2026-10-23');
 """)

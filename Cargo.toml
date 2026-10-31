@@ -42,6 +42,7 @@ members = [
     "packages/editors/code-native",
     "packages/editors/markdown",
     "packages/editors/table",
+    "packages/extensions/plot",
     "packages/editors/image",
     "packages/editors/graph",
     "packages/editors/flow",
@@ -72,6 +73,7 @@ dioxus-workbench = { version = "0.1.0" }
 moonkale-canvas-layer = { path = "packages/canvas-layer" }
 moonkale-shell = { path = "packages/shell" }
 moonkale-distribution = { path = "packages/distribution" }
+moonkale-ext-plot = { path = "packages/extensions/plot" }
 moonkale-ext-history = { path = "packages/extensions/history" }
 moonkale-server = { path = "packages/server" }
 moonkale-server-host = { path = "packages/server-host" }
