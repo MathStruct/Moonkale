@@ -892,3 +892,158 @@ async fn automorphic_recursion_is_stored_as_one_class() {
     // claimed size 2 with one stored member and failed the check above.
     assert_eq!(sizes, [1, 1, 1, 2, 2]);
 }
+
+struct CountingSource {
+    inner: Arc<FolderSource>,
+    reads: std::sync::Mutex<Vec<NodeId>>,
+}
+
+#[moonkale_core::async_trait]
+impl Source for CountingSource {
+    fn id(&self) -> moonkale_core::SourceId {
+        self.inner.id()
+    }
+    fn descriptor(&self) -> moonkale_core::SourceDescriptor {
+        self.inner.descriptor()
+    }
+    async fn query(
+        &self,
+        query: Query,
+    ) -> Result<moonkale_core::QueryResult, moonkale_core::SourceError> {
+        self.inner.query(query).await
+    }
+    async fn fetch_text(
+        &self,
+        node: NodeId,
+    ) -> Result<(String, Version), moonkale_core::SourceError> {
+        self.reads.lock().unwrap().push(node);
+        self.inner.fetch_text(node).await
+    }
+    async fn fetch_bytes(
+        &self,
+        node: NodeId,
+    ) -> Result<(Vec<u8>, Version), moonkale_core::SourceError> {
+        self.inner.fetch_bytes(node).await
+    }
+    async fn apply(
+        &self,
+        tx: Transaction,
+    ) -> Result<moonkale_core::Applied, moonkale_core::SourceError> {
+        self.inner.apply(tx).await
+    }
+}
+
+#[tokio::test]
+async fn refresh_reads_only_changed_file_updates_julia_module_deletes_and_equals_fresh_sync() {
+    use moonkale_index::folder_store::digest::{differences, state};
+    let dir = fixture();
+    let folder = Arc::new(FolderSource::open(dir.path()).unwrap());
+    let counting = Arc::new(CountingSource {
+        inner: folder.clone(),
+        reads: std::sync::Mutex::new(Vec::new()),
+    });
+    let index = IndexSource::build(counting.clone()).await.unwrap();
+    counting.reads.lock().unwrap().clear();
+
+    // 1. Edit one Rust file and refresh it; assert only that file was read from disk.
+    let rs_id = NodeId::derive(&folder.id(), "src/lib.rs");
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub fn add(x: i32) -> i32 { x + 10 }\n",
+    )
+    .unwrap();
+    index.refresh(rs_id).await.unwrap();
+    assert_eq!(*counting.reads.lock().unwrap(), vec![rs_id]);
+    assert_eq!(index.folder_store_report().unwrap().written.files, 1);
+    counting.reads.lock().unwrap().clear();
+
+    // 2. Julia: editing one .jl file in a two-file module still produces correct records for both files.
+    let s = store(&dir);
+    let b_before = s.file_manifest("b.jl").unwrap().unwrap();
+    fs::write(
+        dir.path().join("b.jl"),
+        "const other = 2\nuse_f(x) = f(x)\n",
+    )
+    .unwrap();
+    let b_id = NodeId::derive(&folder.id(), "b.jl");
+    index.refresh(b_id).await.unwrap();
+    assert_eq!(*counting.reads.lock().unwrap(), vec![b_id]);
+    counting.reads.lock().unwrap().clear();
+    let b_mid = s.file_manifest("b.jl").unwrap().unwrap();
+    assert_ne!(b_mid.source, b_before.source);
+    assert!(!b_mid.facts.is_empty(), "b.jl calls generic f from a.jl");
+
+    // Collapse f in a.jl to a single method; both a.jl and b.jl must be updated without re-reading b.jl.
+    let a_id = NodeId::derive(&folder.id(), "a.jl");
+    fs::write(
+        dir.path().join("a.jl"),
+        "const answer = 1\nf(x::Int) = x\ncaller(x) = f(x)\n",
+    )
+    .unwrap();
+    index.refresh(a_id).await.unwrap();
+    assert_eq!(*counting.reads.lock().unwrap(), vec![a_id]);
+    counting.reads.lock().unwrap().clear();
+    let a_after = s.file_manifest("a.jl").unwrap().unwrap();
+    let b_after = s.file_manifest("b.jl").unwrap().unwrap();
+    assert_eq!(a_after.generics[0].2.len(), 1);
+    assert_eq!(b_after.source, b_mid.source);
+    assert_ne!(b_after.spans, b_mid.spans);
+    assert!(b_after.facts.is_empty());
+
+    // 3. Deletion: deleting a file removes it from the store without reading any file.
+    let py_id = NodeId::derive(&folder.id(), "pkg/a.py");
+    fs::remove_file(dir.path().join("pkg/a.py")).unwrap();
+    index.refresh(py_id).await.unwrap();
+    assert!(counting.reads.lock().unwrap().is_empty());
+    assert!(s.file_manifest("pkg/a.py").unwrap().is_none());
+    assert!(s.resolve("py.pkg.a.double").unwrap().is_none());
+
+    // 4. Equivalence: after these edits the store equals a fresh full sync.
+    let actual = state(&s).unwrap();
+    let fresh_dir = tempfile::tempdir().unwrap();
+    for rel in [
+        "Cargo.toml",
+        "src/lib.rs",
+        "pkg/__init__.py",
+        "P.jl",
+        "a.jl",
+        "b.jl",
+        ".gitignore",
+        "ignored.py",
+        ".env",
+        "config.toml",
+        "large.py",
+    ] {
+        let dst = fresh_dir.path().join(rel);
+        fs::create_dir_all(dst.parent().unwrap()).unwrap();
+        fs::copy(dir.path().join(rel), dst).unwrap();
+    }
+    let fresh_folder = FolderSource::open(fresh_dir.path()).unwrap();
+    let fresh_store = FolderStore::open(fresh_dir.path()).unwrap();
+    fresh_store.sync(&inputs(&fresh_folder).await).unwrap();
+    let expected = state(&store(&fresh_dir)).unwrap();
+    assert_eq!(differences(&actual, &expected), Vec::<String>::new());
+}
+
+/// A file that was created and deleted before the index saw it (an editor's
+/// temporary file) arrives as an unknown, derived id: refreshing it reads
+/// nothing and rebuilds nothing.
+#[tokio::test]
+async fn refreshing_an_unknown_vanished_path_reads_nothing() {
+    let dir = fixture();
+    let folder = Arc::new(FolderSource::open(dir.path()).unwrap());
+    let counting = Arc::new(CountingSource {
+        inner: folder.clone(),
+        reads: std::sync::Mutex::new(Vec::new()),
+    });
+    let index = IndexSource::build(counting.clone()).await.unwrap();
+    let s = store(&dir);
+    let seq = s.last_seq().unwrap();
+    counting.reads.lock().unwrap().clear();
+    index
+        .refresh(NodeId::derive(&folder.id(), "src/4913"))
+        .await
+        .unwrap();
+    assert!(counting.reads.lock().unwrap().is_empty());
+    assert_eq!(s.last_seq().unwrap(), seq, "the store is untouched");
+}

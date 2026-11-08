@@ -48,6 +48,8 @@ pub struct IndexSource {
     #[cfg(feature = "sophia")]
     folder_store_lock: tokio::sync::Mutex<()>,
     #[cfg(feature = "sophia")]
+    code_texts: RwLock<std::collections::HashMap<NodeId, String>>,
+    #[cfg(feature = "sophia")]
     cache_repair_attempted: std::sync::atomic::AtomicBool,
     #[cfg(feature = "sophia")]
     folder_report: RwLock<Result<crate::folder_store::FolderReport, String>>,
@@ -124,6 +126,8 @@ impl IndexSource {
             #[cfg(feature = "sophia")]
             folder_store_lock: tokio::sync::Mutex::new(()),
             #[cfg(feature = "sophia")]
+            code_texts: RwLock::new(Default::default()),
+            #[cfg(feature = "sophia")]
             cache_repair_attempted: std::sync::atomic::AtomicBool::new(false),
             #[cfg(feature = "sophia")]
             folder_report: RwLock::new(match &cache_error {
@@ -141,7 +145,7 @@ impl IndexSource {
         };
         this.rebuild().await?;
         #[cfg(feature = "sophia")]
-        let _ = this.sync_folder_store().await;
+        let _ = this.sync_folder_store(None).await;
         Ok(this)
     }
 
@@ -171,20 +175,24 @@ impl IndexSource {
     }
 
     #[cfg(feature = "sophia")]
-    async fn sync_folder_store(&self) -> Result<(), SourceError> {
+    async fn sync_folder_store(
+        &self,
+        selected: Option<&std::collections::BTreeSet<String>>,
+    ) -> Result<(), SourceError> {
         let Some(store) = &self.folder_store else {
             return Ok(());
         };
         let _serial = self.folder_store_lock.lock().await;
         let result = async {
             store.check_budget_active()?;
-            let files = self.cache_files(store).await?;
+            let files = self.cached_code_files(store)?;
             let store = store.clone();
+            let selected = selected.cloned();
             let may_repair = !self
                 .cache_repair_attempted
                 .load(std::sync::atomic::Ordering::Relaxed);
             let (result, repaired) = tokio::task::spawn_blocking(move || {
-                let result = store.sync(&files);
+                let result = store.sync_selected(&files, selected.as_ref());
                 if result.is_err() && may_repair && store.is_broken() {
                     (store.rebuild(&files), true)
                 } else {
@@ -206,6 +214,45 @@ impl IndexSource {
             .map(|error| cache_failure("cache sync failed", error));
         *self.folder_report.w() = result.clone().map_err(|e| e.to_string());
         result.map(|_| ())
+    }
+
+    #[cfg(feature = "sophia")]
+    fn cached_code_files(
+        &self,
+        store: &crate::folder_store::FolderStore,
+    ) -> Result<Vec<crate::folder_store::CodeFile>, SourceError> {
+        if self.stats.r().truncated {
+            return Err(SourceError::Invalid("folder-store walk truncated".into()));
+        }
+        let g = self.graph.r();
+        let texts = self.code_texts.r();
+        let mut files = Vec::new();
+        let mut bytes = 0usize;
+        for (id, text) in texts.iter() {
+            let Some(node) = g.node(*id) else {
+                continue;
+            };
+            if node.kind != NodeKind::File
+                || !walk::wants_text(node, &self.limits)
+                || !matches!(&node.content, Some(ContentRef::Text { lang: Some(l), .. }) if matches!(l.as_str(), "rust" | "julia" | "python"))
+                || !store.admits_path(&node.native_key)
+            {
+                continue;
+            }
+            bytes = bytes.saturating_add(text.len());
+            if text.len() > self.limits.max_text_bytes as usize {
+                continue;
+            }
+            if bytes > crate::folder_store::MAX_SNAPSHOT_BYTES {
+                return Err(SourceError::Invalid("folder-store byte limit".into()));
+            }
+            files.push(crate::folder_store::CodeFile {
+                node: node.clone(),
+                text: text.clone(),
+            });
+        }
+        files.sort_by(|a, b| a.node.native_key.cmp(&b.node.native_key));
+        Ok(files)
     }
 
     #[cfg(feature = "sophia")]
@@ -710,6 +757,8 @@ impl IndexSource {
         }
         *self.graph.w() = graph;
         *self.search.w() = SearchIndex::default();
+        #[cfg(feature = "sophia")]
+        self.code_texts.w().clear();
 
         let mut files = 0;
         for (_, node) in entries {
@@ -759,10 +808,23 @@ impl IndexSource {
                 if let Some(node) = self.graph.w().nodes.get_mut(&file.id) {
                     node.props.remove("index_error");
                 }
+                #[cfg(feature = "sophia")]
+                if matches!(
+                    &file.content,
+                    Some(ContentRef::Text { lang: Some(l), .. })
+                        if matches!(l.as_str(), "rust" | "julia" | "python")
+                ) && text.len() <= self.limits.max_text_bytes as usize
+                {
+                    self.code_texts.w().insert(file.id, text.clone());
+                } else {
+                    self.code_texts.w().remove(&file.id);
+                }
                 self.extract_into(file, &text);
             }
             Err(_) => {
                 self.search.w().remove_file(file.id);
+                #[cfg(feature = "sophia")]
+                self.code_texts.w().remove(&file.id);
                 let mut graph = self.graph.w();
                 graph.set_derived(file.id, Vec::new(), Vec::new());
                 if let Some(node) = graph.nodes.get_mut(&file.id) {
@@ -1204,42 +1266,81 @@ impl Source for IndexSource {
     }
 
     async fn refresh_batch(&self, nodes: &[NodeId]) -> Result<(), SourceError> {
+        let mut selected = std::collections::BTreeSet::new();
         for node in nodes {
-            self.refresh_one(*node).await?;
+            selected.extend(self.refresh_one(*node).await?);
         }
         self.graph.w().resolve_imports();
         #[cfg(feature = "sophia")]
-        let _ = self.sync_folder_store().await;
+        {
+            let selected = if nodes.contains(&self.root) {
+                None
+            } else {
+                Some(&selected)
+            };
+            let _ = self.sync_folder_store(selected).await;
+        }
+        #[cfg(not(feature = "sophia"))]
+        let _ = selected;
         Ok(())
     }
 }
 
 impl IndexSource {
     /// Refresh the in-memory graph; the outer batch publishes Sophia once.
-    async fn refresh_one(&self, node: NodeId) -> Result<(), SourceError> {
-        let found = match self.folder.query(Query::Node(node)).await {
+    /// Returns the folder-relative paths of the files it touched, for the
+    /// selected folder-store sync.
+    async fn refresh_one(
+        &self,
+        node: NodeId,
+    ) -> Result<std::collections::BTreeSet<String>, SourceError> {
+        let mut touched = std::collections::BTreeSet::new();
+        let mut found = match self.folder.query(Query::Node(node)).await {
             Ok(r) => r.nodes.into_iter().next(),
             Err(SourceError::NotFound) => None,
             Err(e) => return Err(e),
         };
+        // A path the folder hasn't listed yet (a new file whose id the caller
+        // derived) and the index never saw: list the tree, names only, to
+        // find it. If it isn't there either, it was a temporary file that is
+        // already gone: nothing to do, and no rebuild.
+        if found.is_none() && self.graph.r().node(node).is_none() {
+            let (entries, _) = walk::walk(self.folder.as_ref(), self.root, &self.limits).await?;
+            found = entries.into_iter().map(|(_, n)| n).find(|n| n.id == node);
+            if found.is_none() {
+                return Ok(touched);
+            }
+        }
         let Some(top) = found else {
             let (gone, linkers) = {
                 let mut g = self.graph.w();
+                let subtree = g.subtree(node);
+                for id in &subtree {
+                    if let Some(n) = g.node(*id) {
+                        if n.kind == NodeKind::File {
+                            touched.insert(n.native_key.clone());
+                        }
+                    }
+                }
                 // Files that linked here: their links become unresolved
                 // (collect before the edges are dropped with the subtree).
-                let linkers = g.origins_linking_to(&g.subtree(node));
+                let linkers = g.origins_linking_to(&subtree);
                 let gone = g.remove_subtree(node);
                 (gone, linkers)
             };
             {
                 let mut search = self.search.w();
+                #[cfg(feature = "sophia")]
+                let mut texts = self.code_texts.w();
                 for g in &gone {
                     search.remove_file(*g);
+                    #[cfg(feature = "sophia")]
+                    texts.remove(g);
                 }
             }
             self.re_extract(&linkers).await;
             self.update_counts();
-            return Ok(());
+            return Ok(touched);
         };
         let mut entries: Vec<(NodeId, Node)> = Vec::new();
         {
@@ -1255,11 +1356,40 @@ impl IndexSource {
             let (below, _) = walk::walk(self.folder.as_ref(), node, &self.limits).await?;
             entries.extend(below);
         }
-        {
+        let removed = {
             let mut g = self.graph.w();
+            let mut removed = Vec::new();
+            if top.kind == NodeKind::Directory {
+                let fresh: std::collections::HashSet<NodeId> =
+                    entries.iter().map(|(_, n)| n.id).collect();
+                for id in g.subtree(node) {
+                    if !fresh.contains(&id) {
+                        if let Some(n) = g.node(id) {
+                            if n.kind == NodeKind::File {
+                                touched.insert(n.native_key.clone());
+                            }
+                        }
+                        removed.extend(g.remove_subtree(id));
+                    }
+                }
+            }
             for (parent, n) in &entries {
+                if n.kind == NodeKind::File {
+                    touched.insert(n.native_key.clone());
+                }
                 g.insert_node(n.clone());
                 g.add_edge(*parent, Edge::contains(&n.source, *parent, n.id));
+            }
+            removed
+        };
+        if !removed.is_empty() {
+            let mut search = self.search.w();
+            #[cfg(feature = "sophia")]
+            let mut texts = self.code_texts.w();
+            for g in &removed {
+                search.remove_file(*g);
+                #[cfg(feature = "sophia")]
+                texts.remove(g);
             }
         }
         for (_, n) in &entries {
@@ -1279,7 +1409,7 @@ impl IndexSource {
         };
         self.re_extract(&linkers).await;
         self.update_counts();
-        Ok(())
+        Ok(touched)
     }
 }
 
