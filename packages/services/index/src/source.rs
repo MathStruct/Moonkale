@@ -90,7 +90,9 @@ impl IndexSource {
         let cache_error;
         #[cfg(feature = "sophia")]
         let folder_store = if fd.truth == moonkale_core::SourceTruth::Store {
-            cache_error = Some("store truth: code graph writes await SPEC-010".into());
+            cache_error = Some(
+                "store truth: the store is authored; the folder cache does not write it".into(),
+            );
             None
         } else if let Some(path) = fd.id.as_str().strip_prefix("folder:") {
             let path = std::path::PathBuf::from(path);
@@ -299,7 +301,7 @@ impl IndexSource {
     async fn check_cache(&self) -> Result<QueryResult, SourceError> {
         if self.folder.descriptor().truth == moonkale_core::SourceTruth::Store {
             return Err(SourceError::Unsupported(
-                "store truth: code graph writes await SPEC-010".into(),
+                "store truth: the store is authored; the folder cache does not write it".into(),
             ));
         }
         let store = self

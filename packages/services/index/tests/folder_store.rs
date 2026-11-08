@@ -685,7 +685,7 @@ async fn store_truth_protects_unreadable_store_and_sidecars_from_every_repair_pa
     assert!(index
         .folder_store_report()
         .unwrap_err()
-        .contains("SPEC-010"));
+        .contains("the store is authored; the folder cache does not write it"));
     assert!(index.folder_store_path().is_none());
     assert!(index
         .query(Query::Text {
@@ -695,7 +695,7 @@ async fn store_truth_protects_unreadable_store_and_sidecars_from_every_repair_pa
         .await
         .unwrap_err()
         .to_string()
-        .contains("SPEC-010"));
+        .contains("the store is authored; the folder cache does not write it"));
     let writer = FolderStore::open(dir.path()).unwrap();
     assert!(writer.rebuild(&[]).is_err());
     assert!(writer.sync(&[]).is_err());

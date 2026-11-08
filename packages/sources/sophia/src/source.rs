@@ -24,7 +24,8 @@ const READER: &str = "moonkale";
 const NEIGHBOUR_LIMIT: usize = 10_000;
 const MAX_DEPTH: u32 = 64;
 const SQL_ROWS: usize = 10_000;
-/// Remembered ids before the map is cleared (the root and settings stay).
+/// Remembered ids before the oldest half of non-pinned entries is evicted
+/// (the root, settings and view keys stay).
 const MAX_KEYS: usize = 1_000_000;
 /// `changes_since` waits this long for news, polling the log (v0 has no push).
 const LONG_POLL: Duration = Duration::from_secs(25);
@@ -62,6 +63,12 @@ fn text_version(node: NodeId, token: u64, text: &str) -> Version {
     Version(hash.finish())
 }
 
+#[derive(Default)]
+struct KeyMap {
+    map: HashMap<NodeId, Key>,
+    order: VecDeque<NodeId>,
+}
+
 pub struct SophiaSource {
     id: SourceId,
     root: NodeId,
@@ -71,7 +78,7 @@ pub struct SophiaSource {
     folder_root: Option<PathBuf>,
     stale: Arc<Mutex<BTreeSet<String>>>,
     /// Moonkale hands back ids; Sophia wants keys. Filled by every answer.
-    keys: Mutex<HashMap<NodeId, Key>>,
+    keys: Mutex<KeyMap>,
     edit_bases: Mutex<VecDeque<EditBase>>,
 }
 
@@ -151,11 +158,11 @@ impl SophiaSource {
             derived_path: None,
             folder_root: None,
             stale: Arc::new(Mutex::new(BTreeSet::new())),
-            keys: Mutex::new(HashMap::new()),
+            keys: Mutex::new(KeyMap::default()),
             edit_bases: Mutex::new(VecDeque::new()),
         };
-        source.remember(&root_key);
-        source.remember(&Key::settings());
+        source.pin_key(&root_key);
+        source.pin_key(&Key::settings());
         source.remember_views();
         Ok(source)
     }
@@ -196,24 +203,39 @@ impl SophiaSource {
             .collect()
     }
 
-    fn remember(&self, key: &Key) -> NodeId {
+    fn pin_key(&self, key: &Key) {
         let id = key_id(&self.id, key);
         let mut keys = self.keys.lock().unwrap_or_else(|e| e.into_inner());
-        if keys.len() >= MAX_KEYS {
-            keys.clear();
-            keys.insert(self.root, self.iface.root());
-            keys.insert(key_id(&self.id, &Key::settings()), Key::settings());
-            for k in view_keys() {
-                keys.insert(key_id(&self.id, &k), k);
+        keys.map.insert(id, key.clone());
+    }
+
+    fn remember(&self, key: &Key) -> NodeId {
+        self.remember_capped(key, MAX_KEYS)
+    }
+
+    fn remember_capped(&self, key: &Key, max_keys: usize) -> NodeId {
+        let id = key_id(&self.id, key);
+        let mut keys = self.keys.lock().unwrap_or_else(|e| e.into_inner());
+        if keys.map.contains_key(&id) {
+            return id;
+        }
+        if keys.map.len() >= max_keys {
+            let keep = keys.order.len() / 2;
+            while keys.order.len() > keep || (keys.map.len() >= max_keys && !keys.order.is_empty())
+            {
+                if let Some(old) = keys.order.pop_front() {
+                    keys.map.remove(&old);
+                }
             }
         }
-        keys.insert(id, key.clone());
+        keys.map.insert(id, key.clone());
+        keys.order.push_back(id);
         id
     }
 
     fn remember_views(&self) {
         for k in view_keys() {
-            self.remember(&k);
+            self.pin_key(&k);
         }
     }
 
@@ -266,7 +288,7 @@ impl SophiaSource {
 
     fn key(&self, id: NodeId) -> Result<Key, SourceError> {
         let keys = self.keys.lock().unwrap_or_else(|e| e.into_inner());
-        keys.get(&id).cloned().ok_or(SourceError::NotFound)
+        keys.map.get(&id).cloned().ok_or(SourceError::NotFound)
     }
 
     /// Run a synchronous interface call on the blocking pool.
@@ -1558,5 +1580,39 @@ mod profile_tests {
             applied.version_of(node),
             Some(source.fetch_text(node).await.unwrap().1)
         );
+    }
+
+    #[test]
+    fn key_map_evicts_oldest_half_and_keeps_pinned_keys() {
+        let source = SophiaSource::sample().unwrap();
+        let pinned = source.keys.lock().unwrap().map.len();
+        let cap = pinned + 6;
+        let ids: Vec<NodeId> = (0..6)
+            .map(|i| source.remember_capped(&Key::name(&format!("sample.n{i}")), cap))
+            .collect();
+        // Re-remembering an existing key does not grow or evict the map.
+        assert_eq!(source.remember_capped(&Key::name("sample.n0"), cap), ids[0]);
+        assert_eq!(source.keys.lock().unwrap().map.len(), cap);
+
+        // One more entry beyond `cap` evicts the oldest half (0..3) and keeps 3..6.
+        let seventh = source.remember_capped(&Key::name("sample.n6"), cap);
+        assert_eq!(source.keys.lock().unwrap().map.len(), pinned + 4);
+        for old in &ids[..3] {
+            assert!(matches!(source.key(*old), Err(SourceError::NotFound)));
+        }
+        for kept in &ids[3..] {
+            assert!(source.key(*kept).is_ok());
+        }
+        assert!(source.key(seventh).is_ok());
+
+        // Root, settings and view keys stay across evictions.
+        assert_eq!(source.key(source.root).unwrap(), source.iface.root());
+        assert_eq!(
+            source.key(key_id(&source.id, &Key::settings())).unwrap(),
+            Key::settings()
+        );
+        for v in view_keys() {
+            assert_eq!(source.key(key_id(&source.id, &v)).unwrap(), v);
+        }
     }
 }

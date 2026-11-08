@@ -9,21 +9,31 @@
 //! - `MOONKALE_TOKEN` unset: dev mode, everything open — allowed only on a
 //!   loopback bind ([`guard_bind`] refuses to start otherwise).
 //! - Every `/api/*` and `/mcp` request writes one audit line.
-//! - `/login` is rate-limited per client address (10 attempts / minute).
+//! - `/login` is rate-limited per client address (10 attempts / minute), or
+//!   delayed per failed attempt when the peer address is unknown.
 //!
 //! The MCP endpoint keeps its own `MOONKALE_MCP_TOKEN` bearer check for
 //! external agents; when that is set, `/mcp` is left to it.
 
+#[cfg(feature = "server")]
 use axum::extract::{ConnectInfo, Request};
+#[cfg(feature = "server")]
 use axum::http::{header, HeaderValue, StatusCode};
+#[cfg(feature = "server")]
 use axum::middleware::Next;
+#[cfg(feature = "server")]
 use axum::response::{Html, IntoResponse, Redirect, Response};
+#[cfg(feature = "server")]
 use axum::Form;
 use std::collections::HashMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
+#[cfg(feature = "server")]
+use std::net::SocketAddr;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+#[cfg(feature = "server")]
 const COOKIE: &str = "moonkale_token";
 
 /// The configured token, if any.
@@ -129,6 +139,7 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
     diff == 0
 }
 
+#[cfg(feature = "server")]
 fn presented(req: &Request) -> Option<String> {
     if let Some(v) = req
         .headers()
@@ -148,6 +159,7 @@ fn presented(req: &Request) -> Option<String> {
         .find_map(|kv| kv.strip_prefix(&format!("{COOKIE}=")).map(str::to_string))
 }
 
+#[cfg(feature = "server")]
 fn is_upgrade(req: &Request) -> bool {
     req.headers()
         .get(header::UPGRADE)
@@ -158,6 +170,7 @@ fn is_upgrade(req: &Request) -> bool {
 /// The `Host` the browser used. Under `dx serve` the dev server proxies to
 /// the app on an inner port and rewrites `Host` to it, so that port is
 /// read as the dev server's — the one the browser's `Origin` carries.
+#[cfg(feature = "server")]
 fn host_header(req: &Request) -> String {
     let host = req
         .headers()
@@ -191,6 +204,7 @@ fn host_header(req: &Request) -> String {
 /// port-blind check let it drive the terminal). Origins a reverse proxy
 /// presents (TLS on another port) are listed in `MOONKALE_ALLOWED_ORIGINS`
 /// (comma-separated, e.g. `https://moon.example`).
+#[cfg(feature = "server")]
 fn cross_origin(req: &Request) -> Option<String> {
     let origin = req
         .headers()
@@ -257,10 +271,11 @@ fn loopback_host(host: &str) -> bool {
 }
 
 /// The client address: the socket's (when the host installs `ConnectInfo`;
-/// dioxus's `serve` does not, then `?` — one limiter for everyone), or the
-/// first `X-Forwarded-For` entry **only** when the socket peer is a proxy
-/// listed in `MOONKALE_TRUSTED_PROXIES` (#7: anyone could send the header
-/// and get a fresh rate limit per request).
+/// `dx serve` does not, then `?`), or the first `X-Forwarded-For` entry
+/// **only** when the socket peer is a proxy listed in
+/// `MOONKALE_TRUSTED_PROXIES` (#7: anyone could send the header and get a
+/// fresh rate limit per request).
+#[cfg(feature = "server")]
 fn client_ip(req: &Request) -> String {
     let peer = req
         .extensions()
@@ -289,6 +304,7 @@ fn client_ip(req: &Request) -> String {
 }
 
 /// The gate: see the module docs.
+#[cfg(feature = "server")]
 pub async fn middleware(req: Request, next: Next) -> Response {
     let path = req.uri().path().to_string();
     let relay = path.starts_with("/api/") || path == "/mcp";
@@ -379,7 +395,10 @@ pub async fn middleware(req: Request, next: Next) -> Response {
 
 type Attempts = Mutex<Option<HashMap<String, (u32, Instant)>>>;
 static ATTEMPTS: Attempts = Mutex::new(None);
+#[cfg(feature = "server")]
 static FAILURES: Attempts = Mutex::new(None);
+#[cfg(feature = "server")]
+static UNKNOWN_LOGIN_FAILURES: AtomicU32 = AtomicU32::new(0);
 
 /// Counts one attempt by `ip` in a one-minute window; true beyond `limit`.
 /// Expired windows are dropped, and the map never holds more than 10 000
@@ -403,17 +422,48 @@ fn counted(map: &Attempts, ip: &str, limit: u32) -> bool {
     entry.0 > limit
 }
 
-/// `/login`: 10 attempts per minute and client.
+/// `/login`: 10 attempts per minute and known client IP. Unknown addresses
+/// (`?`) are never locked out; failed attempts are delayed instead so one
+/// client cannot lock everyone out.
 fn rate_limited(ip: &str) -> bool {
-    counted(&ATTEMPTS, ip, 10)
+    ip != "?" && counted(&ATTEMPTS, ip, 10)
+}
+
+/// Delay for the `failures`-th consecutive failed `/login` from an unknown
+/// address (`?`): 1 s, doubling per consecutive failure, capped at 10 s.
+fn unknown_login_delay(failures: u32) -> Duration {
+    if failures == 0 {
+        return Duration::ZERO;
+    }
+    let secs = 1u64
+        .checked_shl(failures.saturating_sub(1))
+        .unwrap_or(10)
+        .min(10);
+    Duration::from_secs(secs)
+}
+
+fn record_unknown_login_failure(counter: &AtomicU32) -> Duration {
+    let n = counter
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
+            Some(c.saturating_add(1))
+        })
+        .unwrap_or(0)
+        .saturating_add(1);
+    unknown_login_delay(n)
+}
+
+fn reset_unknown_login_failures(counter: &AtomicU32) {
+    counter.store(0, Ordering::Relaxed);
 }
 
 /// Requests with a wrong or missing token on `/api` and `/mcp`: 60 per
 /// minute and client (a page that lost its cookie makes a few).
+#[cfg(feature = "server")]
 fn failures_limited(ip: &str) -> bool {
     counted(&FAILURES, ip, 60)
 }
 
+#[cfg(feature = "server")]
 const LOGIN_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Moonkale — log in</title>
 <style>body{font-family:system-ui,sans-serif;background:#0f1116;color:#e6e8ee;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}
 form{background:#161922;border:1px solid #2a2e3a;border-radius:8px;padding:24px;min-width:320px}h1{font-size:18px;margin:0 0 12px}
@@ -425,6 +475,7 @@ button{font:inherit;padding:8px 14px;border-radius:4px;border:1px solid #2a2e3a;
 /// `POST /moonkale-proof` with a challenge as the body: the HMAC of it under
 /// this server's token (audit #18; see `crate::handshake`). 404 without a
 /// token: nothing to prove.
+#[cfg(feature = "server")]
 pub async fn proof_post(body: String) -> Response {
     let challenge = body.trim();
     match token() {
@@ -435,15 +486,18 @@ pub async fn proof_post(body: String) -> Response {
     }
 }
 
+#[cfg(feature = "server")]
 pub async fn login_page() -> Html<String> {
     Html(LOGIN_HTML.replace("MSG", ""))
 }
 
+#[cfg(feature = "server")]
 #[derive(serde::Deserialize)]
 pub struct LoginForm {
     token: String,
 }
 
+#[cfg(feature = "server")]
 pub async fn login_post(req: Request) -> Response {
     use axum::extract::FromRequest;
     let ip = client_ip(&req);
@@ -464,12 +518,18 @@ pub async fn login_post(req: Request) -> Response {
         return Redirect::to("/").into_response();
     };
     if !constant_time_eq(form.token.trim(), &expected) {
+        if ip == "?" {
+            tokio::time::sleep(record_unknown_login_failure(&UNKNOWN_LOGIN_FAILURES)).await;
+        }
         tracing::warn!(target: "moonkale::audit", "{ip} POST /login → wrong token");
         return (
             StatusCode::UNAUTHORIZED,
             Html(LOGIN_HTML.replace("MSG", "<p class=err>Wrong token.</p>")),
         )
             .into_response();
+    }
+    if ip == "?" {
+        reset_unknown_login_failures(&UNKNOWN_LOGIN_FAILURES);
     }
     // Secure when this server serves TLS or says a TLS proxy is in front of
     // it (MOONKALE_INSECURE_HTTP=1 off loopback); a forwarded-proto header
@@ -505,6 +565,7 @@ pub async fn login_post(req: Request) -> Response {
 /// isolation headers the browser wasm runtime needs (`SharedArrayBuffer`):
 /// the app loads nothing cross-origin, so they cost nothing. Set
 /// `MOONKALE_ISOLATE=0` to drop them (then extensions run on the server).
+#[cfg(feature = "server")]
 pub fn protect(router: axum::Router) -> axum::Router {
     router
         .route("/login", axum::routing::get(login_page).post(login_post))
@@ -523,6 +584,7 @@ pub fn protect(router: axum::Router) -> axum::Router {
 pub const CSP: &str =
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'";
 
+#[cfg(feature = "server")]
 async fn isolation_headers(req: Request, next: Next) -> Response {
     let mut resp = next.run(req).await;
     resp.headers_mut()
@@ -596,6 +658,56 @@ mod tests {
             counted(&map, &format!("x{i}"), 3);
         }
         assert!(map.lock().unwrap().as_ref().unwrap().len() <= 10_000);
+    }
+
+    #[test]
+    fn login_rate_limit_locks_known_ips_and_delays_unknown_ones() {
+        for _ in 0..10 {
+            assert!(!rate_limited("198.51.100.10"));
+        }
+        assert!(rate_limited("198.51.100.10"));
+        assert!(
+            !rate_limited("198.51.100.11"),
+            "another known IP has its own bucket"
+        );
+        for _ in 0..100 {
+            assert!(!rate_limited("?"), "unknown addresses are never locked out");
+        }
+        assert_eq!(unknown_login_delay(0), Duration::ZERO);
+        assert_eq!(unknown_login_delay(1), Duration::from_secs(1));
+        assert_eq!(unknown_login_delay(2), Duration::from_secs(2));
+        assert_eq!(unknown_login_delay(3), Duration::from_secs(4));
+        assert_eq!(unknown_login_delay(4), Duration::from_secs(8));
+        assert_eq!(unknown_login_delay(5), Duration::from_secs(10));
+        assert_eq!(unknown_login_delay(100), Duration::from_secs(10));
+        assert_eq!(unknown_login_delay(u32::MAX), Duration::from_secs(10));
+
+        let counter = AtomicU32::new(0);
+        assert_eq!(
+            record_unknown_login_failure(&counter),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            record_unknown_login_failure(&counter),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            record_unknown_login_failure(&counter),
+            Duration::from_secs(4)
+        );
+        assert_eq!(
+            record_unknown_login_failure(&counter),
+            Duration::from_secs(8)
+        );
+        assert_eq!(
+            record_unknown_login_failure(&counter),
+            Duration::from_secs(10)
+        );
+        reset_unknown_login_failures(&counter);
+        assert_eq!(
+            record_unknown_login_failure(&counter),
+            Duration::from_secs(1)
+        );
     }
 
     #[test]

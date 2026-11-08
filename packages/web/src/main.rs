@@ -189,10 +189,42 @@ fn main() {
         if let Some((cert, key)) = moonkale_server::auth::tls_files() {
             serve_tls(cert, key, build_router);
         }
+        if !dioxus::cli_config::is_cli_enabled() || !cfg!(debug_assertions) {
+            serve_http(build_router);
+        }
         dioxus::server::serve(|| async { Ok(build_router()) });
     }
     #[cfg(not(feature = "server"))]
     dioxus::launch(App);
+}
+
+/// Standalone / release HTTP server: serve with `ConnectInfo<SocketAddr>` so
+/// `/login` rate-limiting and audit logs see the peer's IP (`dioxus::server::serve`
+/// uses `into_make_service()` without `ConnectInfo`). Under `dx serve`,
+/// `dioxus::server::serve` is kept for its devtools hot-reload loop.
+#[cfg(feature = "server")]
+fn serve_http(build: fn() -> axum::Router) -> ! {
+    dioxus::logger::initialize_default();
+    let addr = dioxus::cli_config::fullstack_address_or_localhost();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+    rt.block_on(async move {
+        let listener = tokio::net::TcpListener::bind(addr)
+            .await
+            .unwrap_or_else(|e| {
+                eprintln!("moonkale: cannot bind {addr}: {e}");
+                std::process::exit(2);
+            });
+        axum::serve(
+            listener,
+            build().into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .await
+        .expect("http server");
+    });
+    std::process::exit(0)
 }
 
 /// HTTPS with the PEM files in `MOONKALE_TLS_CERT`/`MOONKALE_TLS_KEY`
@@ -215,7 +247,7 @@ fn serve_tls(cert: String, key: String, build: fn() -> axum::Router) -> ! {
             });
         eprintln!("moonkale: serving https://{addr}");
         axum_server::bind_rustls(addr, config)
-            .serve(build().into_make_service())
+            .serve(build().into_make_service_with_connect_info::<std::net::SocketAddr>())
             .await
             .expect("https server");
     });

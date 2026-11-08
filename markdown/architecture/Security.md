@@ -16,7 +16,7 @@ The pieces are described where they were built ([[Remote and Server Modes]], [[L
 
 | boundary | what is trusted | enforced by | where in the code |
 |---|---|---|---|
-| **Server ↔ browser/desktop client** | whoever holds `MOONKALE_TOKEN` gets every file under `MOONKALE_ROOT` and, unless `MOONKALE_TERMINAL=0`, a shell as the server's user | cookie (HttpOnly, SameSite=Strict) or `Authorization: Bearer`; `/login` rate-limited; non-loopback bind refused without a token (`guard_bind`); TLS built in (`MOONKALE_TLS_CERT`/`_KEY`), plain HTTP off loopback refused unless `MOONKALE_INSECURE_HTTP=1`; Origin check on websocket upgrades; COOP/COEP | `server/src/auth.rs`, `web/src/main.rs` |
+| **Server ↔ browser/desktop client** | whoever holds `MOONKALE_TOKEN` gets every file under `MOONKALE_ROOT` and, unless `MOONKALE_TERMINAL=0`, a shell as the server's user | cookie (HttpOnly, SameSite=Strict) or `Authorization: Bearer`; `/login` rate-limited per client IP (10/min, or delayed 1–10 s per failed attempt when peer address is unknown); non-loopback bind refused without a token (`guard_bind`); TLS built in (`MOONKALE_TLS_CERT`/`_KEY`), plain HTTP off loopback refused unless `MOONKALE_INSECURE_HTTP=1`; Origin check on websocket upgrades; COOP/COEP | `server/src/auth.rs`, `web/src/main.rs` |
 | **External agents (MCP)** | a separate bearer, `MOONKALE_MCP_TOKEN` | `server/src/mcp.rs` | — |
 | **Paths** | everything below `MOONKALE_ROOT` (server) or the opened folder (desktop) | canonicalisation in `moonkale_server::open_any`, relative keys in `project-fs` | symlinks and Windows paths escape it (#5) |
 | **Secrets** | names in settings, values never | resolved from `MOONKALE_SECRET_<NAME>`, the provider's usual variable, or `<config>/moonkale/secrets.json` (mode 600); web clients never see a value | `llm/src/secrets.rs`; an OS keychain (`keyring`) is planned, not built |
@@ -62,7 +62,7 @@ The pieces are described where they were built ([[Remote and Server Modes]], [[L
 
 | Connection | Today | Gaps |
 |---|---|---|
-| Client ↔ server (web, desktop as client, phone) | a token as an HttpOnly cookie or bearer; TLS built in; plain HTTP off loopback refused; `/login` rate-limited | accounts and roles; a CSP; generalised rate limits; #20 (the batch of low findings) |
+| Client ↔ server (web, desktop as client, phone) | a token as an HttpOnly cookie or bearer; TLS built in; plain HTTP off loopback refused; `/login` rate-limited per client IP (or delayed when peer address is unknown) | accounts and roles; a CSP; generalised rate limits; #20 (the batch of low findings) |
 | Desktop ↔ remote folder (SSH) | the system `ssh` and the user's keys; a per-session token over stdin; a loopback-only port | #18: control socket in shared `/tmp`, port hijack, fixed upload temp name, unchecksummed server binary |
 | Moonkale ↔ Git remotes | system Git, ssh-agent/credential helper/askpass; server-authorised `/api/git`, configured named remotes only | HTTPS or SSH off loopback; local files and loopback HTTP for fixtures/development; embedded URL credentials refused; no credential input, persistence or argument/output logging |
 | Moonkale ↔ databases | drivers in-process; read-only opens; statement classification | per-source credentials through secrets; TLS for remote databases (Postgres, D1, Databento) checked, not optional |

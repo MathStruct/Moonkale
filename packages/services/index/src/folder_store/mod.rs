@@ -176,7 +176,9 @@ impl FolderStore {
             || moonkale_project_fs::truth::detect(&self.root).map_err(io)?
                 == moonkale_core::SourceTruth::Store
         {
-            return Err(error("store truth: code graph writes await SPEC-010"));
+            return Err(error(
+                "store truth: the store is authored; the folder cache does not write it",
+            ));
         }
         Ok(())
     }
