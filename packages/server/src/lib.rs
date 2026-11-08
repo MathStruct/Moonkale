@@ -101,11 +101,16 @@ pub(crate) mod reopen {
             Self::default()
         }
 
-        /// Return descriptors for `path` (canonicalised under `allowed_root`),
-        /// reusing the open sources when `canonical` is already open. If a
-        /// folder is re-opened with new `Some(LlmSettings)` embedding options,
-        /// `build` is called with the existing `FolderSource` so only the index
-        /// is rebuilt.
+        /// Return descriptors for `path` (canonicalised under `allowed_root`).
+        /// Every open builds fresh sources and replaces what the table held
+        /// for that path, so the old ones are dropped rather than left
+        /// running. Reusing a still-open folder's sources was tried
+        /// (6c5c1e3e, M-BUG-02) and reverted: a folder changed behind the
+        /// server's back (a git checkout, a deleted `.moonkale` cache) left
+        /// the reused index and code cache stale (CI on 639f8d0c..e017877f:
+        /// graph-rename, overview). If a folder is re-opened with new
+        /// `Some(LlmSettings)` embedding options, `build` gets the existing
+        /// `FolderSource`, as before.
         pub async fn open_or_reuse<F, Fut>(
             &self,
             allowed_root: &Path,
@@ -119,25 +124,15 @@ pub(crate) mod reopen {
         {
             let canonical = canonical_in_root(allowed_root, path).map_err(|e| e.to_string())?;
             let mut guard = self.by_path.lock().await;
-            let existing_folder = if let Some(entry) = guard.get(&canonical) {
+            let existing_folder = guard.get(&canonical).and_then(|entry| {
                 let is_folder = entry
                     .sources
                     .first()
                     .is_some_and(|s| s.descriptor().family == SourceFamily::Folder);
-                // Only folders are reused (their index is the costly part). A
-                // database file opens fresh each time, as before: a source
-                // that once fell back to read-only (a locked file) must not
-                // refuse every later write (CI on 6c5c1e3e, table-edit).
-                if !is_folder {
-                    None
-                } else if embed.is_none() || embed == entry.embed {
-                    return Ok(entry.sources.iter().map(|s| s.descriptor()).collect());
-                } else {
-                    entry.sources.first().cloned()
-                }
-            } else {
-                None
-            };
+                (is_folder && embed.is_some() && embed != entry.embed)
+                    .then(|| entry.sources.first().cloned())
+                    .flatten()
+            });
             let sources = build(canonical.clone(), existing_folder, embed.clone()).await?;
             let descriptors = sources.iter().map(|s| s.descriptor()).collect();
             guard.insert(canonical, OpenedPath { sources, embed });
@@ -250,16 +245,9 @@ pub(crate) mod state {
                             out.push(index.clone());
                             #[cfg(feature = "sophia")]
                             if let Some(path) = index.folder_store_path() {
-                                let sophia_id = moonkale_core::SourceId::new(format!(
-                                    "sophia:{}",
-                                    path.display()
-                                ));
-                                let sophia_res = match reg.get(&sophia_id) {
-                                    Some(s) => Ok(s),
-                                    None => moonkale_sources_sophia::SophiaSource::open(path)
-                                        .await
-                                        .map(|s| Arc::new(s) as Arc<dyn moonkale_core::Source>),
-                                };
+                                let sophia_res = moonkale_sources_sophia::SophiaSource::open(path)
+                                    .await
+                                    .map(|s| Arc::new(s) as Arc<dyn moonkale_core::Source>);
                                 match sophia_res {
                                     Ok(source) => {
                                         index.set_cache_reader(Ok(source.clone()));
@@ -516,7 +504,7 @@ mod reopen_tests {
     }
 
     #[test]
-    fn reopening_same_canonical_folder_builds_once_and_reuses_descriptors() {
+    fn reopening_builds_fresh_and_keeps_the_folder_only_for_new_embeddings() {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -564,17 +552,18 @@ mod reopen_tests {
                 .open_or_reuse(dir.path(), "", None, &build)
                 .await
                 .unwrap();
+            // The same canonical folder (here via `sub/..`) is read afresh.
             let second = table
                 .open_or_reuse(dir.path(), "sub/..", None, &build)
                 .await
                 .unwrap();
-            assert_eq!(first, second);
-            assert_eq!(folder_builds.load(Ordering::SeqCst), 1);
-            assert_eq!(index_builds.load(Ordering::SeqCst), 1);
+            assert_eq!(first[0].id, second[0].id);
+            assert_eq!(second[0].display_name, "folder#2");
+            assert_eq!(folder_builds.load(Ordering::SeqCst), 2);
+            assert_eq!(index_builds.load(Ordering::SeqCst), 2);
 
-            // Re-opening with new embedding settings reuses the FolderSource and
-            // rebuilds only the index; a later open with the same settings or
-            // `None` reuses that index without rebuilding.
+            // New embedding settings keep the FolderSource and rebuild only
+            // the index.
             let embed = Some(moonkale_llm::LlmSettings {
                 provider: "mock".into(),
                 ..Default::default()
@@ -583,23 +572,18 @@ mod reopen_tests {
                 .open_or_reuse(dir.path(), ".", embed.clone(), &build)
                 .await
                 .unwrap();
-            assert_eq!(folder_builds.load(Ordering::SeqCst), 1);
-            assert_eq!(index_builds.load(Ordering::SeqCst), 2);
-            assert_eq!(third[0], first[0]);
-            assert_eq!(third[1].display_name, "index#2:mock");
+            assert_eq!(folder_builds.load(Ordering::SeqCst), 2);
+            assert_eq!(index_builds.load(Ordering::SeqCst), 3);
+            assert_eq!(third[0], second[0]);
+            assert_eq!(third[1].display_name, "index#3:mock");
 
-            let fourth = table
+            // The same settings again: a fresh open.
+            table
                 .open_or_reuse(dir.path(), "", embed, &build)
                 .await
                 .unwrap();
-            let fifth = table
-                .open_or_reuse(dir.path(), "", None, &build)
-                .await
-                .unwrap();
-            assert_eq!(fourth, third);
-            assert_eq!(fifth, third);
-            assert_eq!(folder_builds.load(Ordering::SeqCst), 1);
-            assert_eq!(index_builds.load(Ordering::SeqCst), 2);
+            assert_eq!(folder_builds.load(Ordering::SeqCst), 3);
+            assert_eq!(index_builds.load(Ordering::SeqCst), 4);
         });
     }
 }
@@ -610,7 +594,7 @@ mod server_open_tests {
     use std::sync::Arc;
 
     #[test]
-    fn open_folder_reuses_registered_sources_for_same_folder() {
+    fn reopening_a_folder_reads_it_afresh_and_replaces_its_sources() {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -622,15 +606,20 @@ mod server_open_tests {
 
             let first = state::open_folder("", None).await.unwrap();
             assert!(first.len() >= 2);
-            let folder_a = state::registry().get(&first[0].id).unwrap();
             let index_a = state::registry().get(&first[1].id).unwrap();
 
+            // Changed behind the server's back (no watcher runs here): a
+            // re-open sees the new file and recreates a deleted code cache.
+            std::fs::write(dir.path().join("lib.rs"), "pub fn fresh() {}\n").unwrap();
+            let cache = dir.path().join(".moonkale/code.sophia");
+            std::fs::remove_dir_all(dir.path().join(".moonkale")).unwrap();
             let second = state::open_folder(".", None).await.unwrap();
-            assert_eq!(first, second);
-            let folder_b = state::registry().get(&second[0].id).unwrap();
+            assert_eq!(first[1].id, second[1].id);
+            assert!(second[1].display_name.contains("2 files"), "{second:?}");
+            assert!(cache.is_file());
+            // The registry holds the new index, not the old one.
             let index_b = state::registry().get(&second[1].id).unwrap();
-            assert!(Arc::ptr_eq(&folder_a, &folder_b));
-            assert!(Arc::ptr_eq(&index_a, &index_b));
+            assert!(!Arc::ptr_eq(&index_a, &index_b));
         });
     }
 }

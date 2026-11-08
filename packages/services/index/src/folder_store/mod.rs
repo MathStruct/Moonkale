@@ -76,7 +76,14 @@ impl FolderStore {
         if truth == moonkale_core::SourceTruth::Store {
             return Ok(this);
         }
-        let dir = this.root.join(".moonkale");
+        this.prepare_dir()?;
+        Ok(this)
+    }
+
+    /// Create `.moonkale/` and its ignore file. Writers call it again: the
+    /// directory may have been deleted while the folder stayed open.
+    fn prepare_dir(&self) -> Result<(), SourceError> {
+        let dir = self.root.join(".moonkale");
         if dir
             .symlink_metadata()
             .is_ok_and(|m| m.file_type().is_symlink())
@@ -96,7 +103,7 @@ impl FolderStore {
                 .and_then(|mut f| f.write_all(b"*\n"))
                 .map_err(io)?;
         }
-        Ok(this)
+        Ok(())
     }
     /// Once evicted, use the memory index until this folder is reopened.
     pub fn check_budget_active(&self) -> Result<(), SourceError> {
@@ -205,6 +212,7 @@ impl FolderStore {
     pub fn rebuild(&self, files: &[CodeFile]) -> Result<FolderReport, SourceError> {
         self.check_budget_active()?;
         self.require_file_truth()?;
+        self.prepare_dir()?;
         self.check_path()?;
         self.validate_files(files)?;
         if self.path().exists() {
@@ -231,6 +239,7 @@ impl FolderStore {
     pub fn check(&self, files: &[CodeFile]) -> Result<Vec<String>, SourceError> {
         self.check_budget_active()?;
         self.require_file_truth()?;
+        self.prepare_dir()?;
         self.check_path()?;
         self.validate_files(files)?;
         let scratch = tempfile::Builder::new()
@@ -279,6 +288,7 @@ impl FolderStore {
     // eviction would make reads incomplete, so evict this entry as a unit.
     fn enforce_byte_budget(&self, budget: usize) -> Result<(), SourceError> {
         self.require_file_truth()?;
+        self.prepare_dir()?;
         self.check_path()?;
         let paths: Vec<_> = ["", "-wal", "-shm", "-journal"]
             .iter()
@@ -301,6 +311,7 @@ impl FolderStore {
             }
         }
         self.require_file_truth()?;
+        self.prepare_dir()?;
         self.check_path()?;
         // Latch before disposal, including a partially failed removal. No
         // automatic repair/sync may recreate an over-budget cache this open.
@@ -329,6 +340,7 @@ impl FolderStore {
     ) -> Result<FolderReport, SourceError> {
         self.check_budget_active()?;
         self.require_file_truth()?;
+        self.prepare_dir()?;
         self.check_path()?;
         self.validate_files(files)?;
         let existed = self.path().exists();
