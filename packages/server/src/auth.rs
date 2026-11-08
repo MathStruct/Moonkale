@@ -451,13 +451,15 @@ fn unknown_failure_delay(failures: u32) -> Duration {
 }
 
 fn record_unknown_failure(counter: &AtomicU32) -> Duration {
-    let n = counter
-        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
-            Some(c.saturating_add(1))
-        })
-        .unwrap_or(0)
-        .saturating_add(1);
-    unknown_failure_delay(n)
+    // A compare-and-swap loop: CI's newer toolchain deprecates fetch_update.
+    let mut current = counter.load(Ordering::Relaxed);
+    loop {
+        let next = current.saturating_add(1);
+        match counter.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
+            Ok(_) => return unknown_failure_delay(next),
+            Err(actual) => current = actual,
+        }
+    }
 }
 
 fn reset_unknown_failures(counter: &AtomicU32) {

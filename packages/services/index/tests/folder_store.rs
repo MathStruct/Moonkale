@@ -885,6 +885,17 @@ async fn automorphic_recursion_is_stored_as_one_class() {
             r.component_size
         );
         sizes.push(r.component_size);
+        // Sophia v0.1.9: definitions carry Moonkale's normaliser, so Sophia
+        // checks their component size only and calls them Foreign; its own
+        // records (the manifest, the source text) rehash as Valid.
+        let verified = s.verify(id).unwrap();
+        assert!(verified.is_ok(), "{} verifies as {verified:?}", id.to_hex());
+        if r.kind == "function_item" {
+            assert!(
+                matches!(verified, sophia_store::Verification::Foreign { .. }),
+                "{verified:?}"
+            );
+        }
     }
     sizes.sort_unstable();
     // f and g are one size-1 class, odd and even a size-2 component, plus the
