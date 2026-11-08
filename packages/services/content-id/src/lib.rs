@@ -33,8 +33,10 @@ pub use normalize::{definition, definition_and_uses, Encoded};
 /// references resolve per module, not per file (SPEC-008, 2026-10-20). 6:
 /// Julia type parameters (`where {T}`, `struct S{T}`) are locals, and a
 /// callable-type or interpolated head names nothing (2026-10-20). 7: nothing
-/// inside a Julia call is a module-level unit (2026-10-20).
-pub const NORMALIZER_VERSION: u32 = 7;
+/// inside a Julia call is a module-level unit (2026-10-20). 8: automorphic
+/// members of a recursive component share one class, and the component is
+/// serialised and sized by its classes, as sophia-hash does (2026-11-08).
+pub const NORMALIZER_VERSION: u32 = 8;
 /// Maximum bytes of a single source file.
 pub const MAX_FILE_BYTES: usize = 16 * 1024 * 1024;
 /// Maximum reachable definitions in one request.

@@ -1,5 +1,6 @@
 //! Ordered-port graph canonicalization. Every candidate root is compared;
-//! automorphic members use the smallest index among equal encodings.
+//! automorphic members share one class (the smallest index among equal
+//! encodings), and the component is stored with one member per class.
 use super::{field, Budget, ContentIdError, Identity, Part, Result, NORMALIZER_VERSION};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -88,6 +89,48 @@ pub fn identities<K: Copy + Eq + Hash>(
     let mut done: HashMap<K, Identity> = HashMap::new();
     for group in groups.into_iter().rev() {
         let members: HashSet<_> = group.iter().copied().collect();
+        // The component's bytes: `size`, then each of `order`'s members with
+        // references inside the component written as `number`'s indices.
+        let encode = |budget: &mut Budget,
+                      done: &HashMap<K, Identity>,
+                      order: &[K],
+                      number: &HashMap<K, u32>,
+                      size: u32|
+         -> Result<Vec<u8>> {
+            let mut bytes = Vec::new();
+            bounded_field(
+                budget,
+                &mut bytes,
+                b"moonkale-component",
+                &NORMALIZER_VERSION.to_le_bytes(),
+            )?;
+            bounded_field(budget, &mut bytes, b"size", &size.to_le_bytes())?;
+            for id in order {
+                bounded_field(budget, &mut bytes, b"member", &[])?;
+                for part in &units[id] {
+                    budget.step()?;
+                    match part {
+                        Part::Bytes(value) => bounded_field(budget, &mut bytes, b"syntax", value)?,
+                        Part::Reference(target) => {
+                            if let Some(index) = number.get(target) {
+                                bounded_field(
+                                    budget,
+                                    &mut bytes,
+                                    b"internal",
+                                    &index.to_le_bytes(),
+                                )?;
+                            } else {
+                                let target =
+                                    done.get(target).ok_or(ContentIdError::MalformedSyntax)?;
+                                bounded_field(budget, &mut bytes, b"external", &target.digest)?;
+                            }
+                        }
+                    }
+                }
+                bounded_field(budget, &mut bytes, b"end-member", &[])?;
+            }
+            Ok(bytes)
+        };
         let mut best: Option<Vec<u8>> = None;
         let mut indices = HashMap::new();
         for &root in &group {
@@ -108,43 +151,7 @@ pub fn identities<K: Copy + Eq + Hash>(
                     }
                 }
             }
-            let mut bytes = Vec::new();
-            bounded_field(
-                budget,
-                &mut bytes,
-                b"moonkale-component",
-                &NORMALIZER_VERSION.to_le_bytes(),
-            )?;
-            bounded_field(
-                budget,
-                &mut bytes,
-                b"size",
-                &(group.len() as u32).to_le_bytes(),
-            )?;
-            for id in order {
-                bounded_field(budget, &mut bytes, b"member", &[])?;
-                for part in &units[&id] {
-                    budget.step()?;
-                    match part {
-                        Part::Bytes(value) => bounded_field(budget, &mut bytes, b"syntax", value)?,
-                        Part::Reference(target) => {
-                            if let Some(index) = numbered.get(target) {
-                                bounded_field(
-                                    budget,
-                                    &mut bytes,
-                                    b"internal",
-                                    &index.to_le_bytes(),
-                                )?;
-                            } else {
-                                let target =
-                                    done.get(target).ok_or(ContentIdError::MalformedSyntax)?;
-                                bounded_field(budget, &mut bytes, b"external", &target.digest)?;
-                            }
-                        }
-                    }
-                }
-                bounded_field(budget, &mut bytes, b"end-member", &[])?;
-            }
+            let bytes = encode(budget, &done, &order, &numbered, group.len() as u32)?;
             match &best {
                 Some(previous) if bytes > *previous => {}
                 Some(previous) if bytes == *previous => {
@@ -159,7 +166,33 @@ pub fn identities<K: Copy + Eq + Hash>(
                 }
             }
         }
-        let digest = *blake3::hash(&best.ok_or(ContentIdError::MalformedSyntax)?).as_bytes();
+        let mut best = best.ok_or(ContentIdError::MalformedSyntax)?;
+        // Automorphic members tie on the smallest index. Like sophia-hash,
+        // collapse them into classes: dense class numbers, references written
+        // as classes, one member per class, and size = the number of classes,
+        // so the stored component has exactly `size` distinct members.
+        let mut distinct: Vec<u32> = indices.values().copied().collect();
+        distinct.sort_unstable();
+        distinct.dedup();
+        let size = distinct.len() as u32;
+        if distinct.len() < group.len() {
+            let class: HashMap<K, u32> = indices
+                .iter()
+                .map(|(id, index)| (*id, distinct.binary_search(index).unwrap() as u32))
+                .collect();
+            let mut representatives = Vec::with_capacity(distinct.len());
+            for c in 0..size {
+                representatives.push(
+                    *group
+                        .iter()
+                        .find(|id| class[*id] == c)
+                        .ok_or(ContentIdError::MalformedSyntax)?,
+                );
+            }
+            best = encode(budget, &done, &representatives, &class, size)?;
+            indices = class;
+        }
+        let digest = *blake3::hash(&best).as_bytes();
         for id in group.iter() {
             let index = indices[id];
             let mut bytes = Vec::new();
@@ -173,7 +206,7 @@ pub fn identities<K: Copy + Eq + Hash>(
                     normalizer_version: NORMALIZER_VERSION,
                     component_digest: digest,
                     component_index: index,
-                    component_size: group.len() as u32,
+                    component_size: size,
                 },
             );
         }
@@ -242,6 +275,47 @@ mod tests {
             vec![bytes(1), Part::Reference(id(1)), Part::Reference(id(2))],
         );
         assert_ne!(first, identities(&other, &mut Budget::default()).unwrap());
+    }
+    #[test]
+    fn automorphic_members_share_one_class_and_the_component_counts_classes() {
+        // Sophia's probe (2026-11-08): `fn f() { g() }` and `fn g() { f() }`
+        // have identical bodies up to each other. Both get index 0, so the
+        // component must have size 1, or Sophia's verify sees one of two.
+        let pair = Units::from([
+            (id(1), vec![bytes(9), Part::Reference(id(2))]),
+            (id(2), vec![bytes(9), Part::Reference(id(1))]),
+        ]);
+        let got = identities(&pair, &mut Budget::default()).unwrap();
+        assert_eq!(got[&id(1)], got[&id(2)]);
+        assert_eq!(got[&id(1)].component_index, 0);
+        assert_eq!(got[&id(1)].component_size, 1);
+        // A self-recursive singleton with the same body is the same component.
+        let single = Units::from([(id(3), vec![bytes(9), Part::Reference(id(3))])]);
+        assert_eq!(
+            identities(&single, &mut Budget::default()).unwrap()[&id(3)],
+            got[&id(1)]
+        );
+        // Three identical members in a cycle collapse to one class as well.
+        let cycle = Units::from([
+            (id(1), vec![bytes(9), Part::Reference(id(2))]),
+            (id(2), vec![bytes(9), Part::Reference(id(3))]),
+            (id(3), vec![bytes(9), Part::Reference(id(1))]),
+        ]);
+        let got = identities(&cycle, &mut Budget::default()).unwrap();
+        assert!(got
+            .values()
+            .all(|i| i.component_size == 1 && i.component_index == 0));
+        // Members that differ keep their own classes and the full size.
+        let mixed = Units::from([
+            (id(1), vec![bytes(1), Part::Reference(id(2))]),
+            (id(2), vec![bytes(2), Part::Reference(id(1))]),
+        ]);
+        let got = identities(&mixed, &mut Budget::default()).unwrap();
+        assert_ne!(got[&id(1)].digest, got[&id(2)].digest);
+        assert_eq!(got[&id(1)].component_size, 2);
+        let mut indices = [got[&id(1)].component_index, got[&id(2)].component_index];
+        indices.sort_unstable();
+        assert_eq!(indices, [0, 1]);
     }
     #[test]
     fn canonicalization_budget_has_no_partial_success() {

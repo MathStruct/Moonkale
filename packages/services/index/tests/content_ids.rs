@@ -113,8 +113,15 @@ async fn dependencies_and_recursive_components_are_name_and_order_invariant() {
         let path = format!("a.{ext}");
         let (_, f) = identity(&path, original, "f").await;
         let (_, g) = identity(&path, original, "g").await;
-        assert_eq!(f.component_size, 2, "{ext}");
+        // f and g are automorphic (identical up to each other): one class,
+        // so one identity and a component of size 1 (normaliser 8, as
+        // sophia-hash stores it; Sophia's verify needs size = members).
+        assert_eq!(f.component_size, 1, "{ext}");
         assert_eq!(f.component_digest, g.component_digest);
+        assert_eq!(f.id, g.id, "{ext}: automorphic members share an identity");
+        // The edited pair differs, so it keeps two classes.
+        let (_, edited_f) = identity(&path, edited, "f").await;
+        assert_eq!(edited_f.component_size, 2, "{ext}: edited pair");
         assert_eq!(
             f.id,
             identity(&path, renamed, "a").await.1.id,

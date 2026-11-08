@@ -842,3 +842,53 @@ async fn cache_selection_resolves_to_index_and_refuses_shared_bodies() {
         .nodes
         .is_empty());
 }
+
+/// X-BUG-01 (2026-11-08): automorphic recursion (`f` and `g` identical up to
+/// each other) used to be stored as a size-2 component with one record.
+/// With normaliser 8 every stored component has exactly as many members as
+/// its size, which Sophia's `Store::verify` and `collect` rely on. (Sophia's
+/// own `Record::verify` re-hashes with its rules, which don't cover the
+/// folder producer's digests; that is a separate question for Sophia.)
+#[tokio::test]
+async fn automorphic_recursion_is_stored_as_one_class() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    fs::create_dir_all(p.join("src")).unwrap();
+    fs::write(
+        p.join("Cargo.toml"),
+        "[package]\nname = \"demo-crate\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    fs::write(
+        p.join("src/lib.rs"),
+        "pub fn f() -> i32 { g() }\npub fn g() -> i32 { f() }\n\
+         pub fn odd(n: u32) -> bool { n != 0 && even(n - 1) }\n\
+         pub fn even(n: u32) -> bool { n == 0 || odd(n - 1) }\n",
+    )
+    .unwrap();
+    let (_folder, index) = open(&dir).await;
+    let report = index.folder_store_report().unwrap();
+    // f and g are one record; odd and even differ, so two more.
+    assert_eq!(report.written.new_records, 3, "{report:?}");
+    let s = store(&dir);
+    let records = s.read(|tx| tx.records_of_kind(None, 1000)).unwrap();
+    let mut sizes = Vec::new();
+    for id in &records {
+        let r = s.record(id).unwrap().unwrap();
+        let members = s.read(|tx| tx.component(&r.component)).unwrap();
+        assert_eq!(
+            members.len() as u32,
+            r.component_size,
+            "record {} is one of {} stored members, not {}",
+            id.to_hex(),
+            members.len(),
+            r.component_size
+        );
+        sizes.push(r.component_size);
+    }
+    sizes.sort_unstable();
+    // f and g are one size-1 class, odd and even a size-2 component, plus the
+    // file's two non-recursive records. Before normaliser 8 the f/g record
+    // claimed size 2 with one stored member and failed the check above.
+    assert_eq!(sizes, [1, 1, 1, 2, 2]);
+}
