@@ -10878,8 +10878,8 @@ dependencies = [
 
 [[package]]
 name = "sophia-hash"
-version = "0.1.9"
-source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.9#c19862aa55250a186e12be13bbdc8c9e13ee8811"
+version = "0.1.11"
+source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.11#cc9e4260baf9e37250b3472d1cc99209ed6502ee"
 dependencies = [
  "blake3",
  "thiserror 2.0.20",
@@ -10887,8 +10887,8 @@ dependencies = [
 
 [[package]]
 name = "sophia-interface"
-version = "0.1.9"
-source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.9#c19862aa55250a186e12be13bbdc8c9e13ee8811"
+version = "0.1.11"
+source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.11#cc9e4260baf9e37250b3472d1cc99209ed6502ee"
 dependencies = [
  "blake3",
  "sophia-hash",
@@ -10901,8 +10901,8 @@ dependencies = [
 
 [[package]]
 name = "sophia-query"
-version = "0.1.9"
-source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.9#c19862aa55250a186e12be13bbdc8c9e13ee8811"
+version = "0.1.11"
+source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.11#cc9e4260baf9e37250b3472d1cc99209ed6502ee"
 dependencies = [
  "sophia-hash",
  "sophia-store",
@@ -10911,8 +10911,8 @@ dependencies = [
 
 [[package]]
 name = "sophia-store"
-version = "0.1.9"
-source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.9#c19862aa55250a186e12be13bbdc8c9e13ee8811"
+version = "0.1.11"
+source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.11#cc9e4260baf9e37250b3472d1cc99209ed6502ee"
 dependencies = [
  "blake3",
  "rusqlite",
@@ -10922,8 +10922,8 @@ dependencies = [
 
 [[package]]
 name = "sophialang-core"
-version = "0.1.9"
-source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.9#c19862aa55250a186e12be13bbdc8c9e13ee8811"
+version = "0.1.11"
+source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.11#cc9e4260baf9e37250b3472d1cc99209ed6502ee"
 dependencies = [
  "sophia-hash",
  "thiserror 2.0.20",
@@ -10931,8 +10931,8 @@ dependencies = [
 
 [[package]]
 name = "sophialang-syntax"
-version = "0.1.9"
-source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.9#c19862aa55250a186e12be13bbdc8c9e13ee8811"
+version = "0.1.11"
+source = "git+https://github.com/MathStruct/Sophia.git?tag=v0.1.11#cc9e4260baf9e37250b3472d1cc99209ed6502ee"
 dependencies = [
  "sophia-hash",
  "sophialang-core",
@@ -11533,7 +11533,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.60.2",

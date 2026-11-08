@@ -192,6 +192,13 @@ reports: `history-2026-10-28-{lenticulum,moonkale}-v0.1.6.jsonl`.
 review of SPEC-010): the same counts again, 0 differences and 0 errors in both
 histories. Raw reports: `history-2026-10-29-{lenticulum,moonkale}-v0.1.7.jsonl`.
 
+**Rerun on Sophia v0.1.9 and v0.1.11** (2026-11-08, normaliser
+`moonkale-wp66-imports-v1@8`): the same counts, 0 differences and 0 errors in
+both histories on both tags. v0.1.10 was skipped: it re-hashed records whose
+normaliser didn't start with `moonkale-wp66@`, so the folder store's
+definitions verified as Invalid; v0.1.11 also accepts `moonkale-wp66-`. Raw
+reports: `history-2026-11-08-{lenticulum,moonkale}-{v0.1.9,v0.1.11}.jsonl`.
+
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
 **Current: Sophia v0.1.4** (`919d723`, 2026-10-26): `replace_files` refuses
