@@ -9,8 +9,9 @@
 //! - `MOONKALE_TOKEN` unset: dev mode, everything open — allowed only on a
 //!   loopback bind ([`guard_bind`] refuses to start otherwise).
 //! - Every `/api/*` and `/mcp` request writes one audit line.
-//! - `/login` is rate-limited per client address (10 attempts / minute), or
-//!   delayed per failed attempt when the peer address is unknown.
+//! - `/login` and failed `/api/*` or `/mcp` requests are rate-limited per
+//!   client address (10 and 60 attempts / minute), or delayed on consecutive
+//!   failures when the peer address is unknown.
 //!
 //! The MCP endpoint keeps its own `MOONKALE_MCP_TOKEN` bearer check for
 //! external agents; when that is set, `/mcp` is left to it.
@@ -352,6 +353,9 @@ pub async fn middleware(req: Request, next: Next) -> Response {
         Some(expected) => {
             let ok = presented(&req).is_some_and(|t| constant_time_eq(&t, &expected));
             if ok {
+                if relay && ip == "?" {
+                    reset_unknown_failures(&UNKNOWN_API_FAILURES);
+                }
                 "token"
             } else if public || mcp_own_token {
                 "public"
@@ -365,6 +369,9 @@ pub async fn middleware(req: Request, next: Next) -> Response {
                         "moonkale: too many failed attempts; wait a minute",
                     )
                         .into_response();
+                }
+                if ip == "?" {
+                    tokio::time::sleep(record_unknown_failure(&UNKNOWN_API_FAILURES)).await;
                 }
                 tracing::warn!(target: "moonkale::audit", "{ip} {method} {path} → 401");
                 return (
@@ -395,10 +402,11 @@ pub async fn middleware(req: Request, next: Next) -> Response {
 
 type Attempts = Mutex<Option<HashMap<String, (u32, Instant)>>>;
 static ATTEMPTS: Attempts = Mutex::new(None);
-#[cfg(feature = "server")]
 static FAILURES: Attempts = Mutex::new(None);
 #[cfg(feature = "server")]
 static UNKNOWN_LOGIN_FAILURES: AtomicU32 = AtomicU32::new(0);
+#[cfg(feature = "server")]
+static UNKNOWN_API_FAILURES: AtomicU32 = AtomicU32::new(0);
 
 /// Counts one attempt by `ip` in a one-minute window; true beyond `limit`.
 /// Expired windows are dropped, and the map never holds more than 10 000
@@ -429,9 +437,9 @@ fn rate_limited(ip: &str) -> bool {
     ip != "?" && counted(&ATTEMPTS, ip, 10)
 }
 
-/// Delay for the `failures`-th consecutive failed `/login` from an unknown
+/// Delay for the `failures`-th consecutive failed attempt from an unknown
 /// address (`?`): 1 s, doubling per consecutive failure, capped at 10 s.
-fn unknown_login_delay(failures: u32) -> Duration {
+fn unknown_failure_delay(failures: u32) -> Duration {
     if failures == 0 {
         return Duration::ZERO;
     }
@@ -442,25 +450,26 @@ fn unknown_login_delay(failures: u32) -> Duration {
     Duration::from_secs(secs)
 }
 
-fn record_unknown_login_failure(counter: &AtomicU32) -> Duration {
+fn record_unknown_failure(counter: &AtomicU32) -> Duration {
     let n = counter
         .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |c| {
             Some(c.saturating_add(1))
         })
         .unwrap_or(0)
         .saturating_add(1);
-    unknown_login_delay(n)
+    unknown_failure_delay(n)
 }
 
-fn reset_unknown_login_failures(counter: &AtomicU32) {
+fn reset_unknown_failures(counter: &AtomicU32) {
     counter.store(0, Ordering::Relaxed);
 }
 
 /// Requests with a wrong or missing token on `/api` and `/mcp`: 60 per
-/// minute and client (a page that lost its cookie makes a few).
-#[cfg(feature = "server")]
+/// minute and known client IP (a page that lost its cookie makes a few).
+/// Unknown addresses (`?`) are never locked out; failed attempts are delayed
+/// instead so one client cannot block every client's API calls.
 fn failures_limited(ip: &str) -> bool {
-    counted(&FAILURES, ip, 60)
+    ip != "?" && counted(&FAILURES, ip, 60)
 }
 
 #[cfg(feature = "server")]
@@ -519,7 +528,7 @@ pub async fn login_post(req: Request) -> Response {
     };
     if !constant_time_eq(form.token.trim(), &expected) {
         if ip == "?" {
-            tokio::time::sleep(record_unknown_login_failure(&UNKNOWN_LOGIN_FAILURES)).await;
+            tokio::time::sleep(record_unknown_failure(&UNKNOWN_LOGIN_FAILURES)).await;
         }
         tracing::warn!(target: "moonkale::audit", "{ip} POST /login → wrong token");
         return (
@@ -529,7 +538,8 @@ pub async fn login_post(req: Request) -> Response {
             .into_response();
     }
     if ip == "?" {
-        reset_unknown_login_failures(&UNKNOWN_LOGIN_FAILURES);
+        reset_unknown_failures(&UNKNOWN_LOGIN_FAILURES);
+        reset_unknown_failures(&UNKNOWN_API_FAILURES);
     }
     // Secure when this server serves TLS or says a TLS proxy is in front of
     // it (MOONKALE_INSECURE_HTTP=1 off loopback); a forwarded-proto header
@@ -673,41 +683,41 @@ mod tests {
         for _ in 0..100 {
             assert!(!rate_limited("?"), "unknown addresses are never locked out");
         }
-        assert_eq!(unknown_login_delay(0), Duration::ZERO);
-        assert_eq!(unknown_login_delay(1), Duration::from_secs(1));
-        assert_eq!(unknown_login_delay(2), Duration::from_secs(2));
-        assert_eq!(unknown_login_delay(3), Duration::from_secs(4));
-        assert_eq!(unknown_login_delay(4), Duration::from_secs(8));
-        assert_eq!(unknown_login_delay(5), Duration::from_secs(10));
-        assert_eq!(unknown_login_delay(100), Duration::from_secs(10));
-        assert_eq!(unknown_login_delay(u32::MAX), Duration::from_secs(10));
+        assert_eq!(unknown_failure_delay(0), Duration::ZERO);
+        assert_eq!(unknown_failure_delay(1), Duration::from_secs(1));
+        assert_eq!(unknown_failure_delay(2), Duration::from_secs(2));
+        assert_eq!(unknown_failure_delay(3), Duration::from_secs(4));
+        assert_eq!(unknown_failure_delay(4), Duration::from_secs(8));
+        assert_eq!(unknown_failure_delay(5), Duration::from_secs(10));
+        assert_eq!(unknown_failure_delay(100), Duration::from_secs(10));
+        assert_eq!(unknown_failure_delay(u32::MAX), Duration::from_secs(10));
 
         let counter = AtomicU32::new(0);
-        assert_eq!(
-            record_unknown_login_failure(&counter),
-            Duration::from_secs(1)
+        assert_eq!(record_unknown_failure(&counter), Duration::from_secs(1));
+        assert_eq!(record_unknown_failure(&counter), Duration::from_secs(2));
+        assert_eq!(record_unknown_failure(&counter), Duration::from_secs(4));
+        assert_eq!(record_unknown_failure(&counter), Duration::from_secs(8));
+        assert_eq!(record_unknown_failure(&counter), Duration::from_secs(10));
+        reset_unknown_failures(&counter);
+        assert_eq!(record_unknown_failure(&counter), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn api_failure_limit_locks_known_ips_and_never_locks_unknown_ones() {
+        for _ in 0..60 {
+            assert!(!failures_limited("198.51.100.20"));
+        }
+        assert!(failures_limited("198.51.100.20"));
+        assert!(
+            !failures_limited("198.51.100.21"),
+            "another known IP has its own bucket"
         );
-        assert_eq!(
-            record_unknown_login_failure(&counter),
-            Duration::from_secs(2)
-        );
-        assert_eq!(
-            record_unknown_login_failure(&counter),
-            Duration::from_secs(4)
-        );
-        assert_eq!(
-            record_unknown_login_failure(&counter),
-            Duration::from_secs(8)
-        );
-        assert_eq!(
-            record_unknown_login_failure(&counter),
-            Duration::from_secs(10)
-        );
-        reset_unknown_login_failures(&counter);
-        assert_eq!(
-            record_unknown_login_failure(&counter),
-            Duration::from_secs(1)
-        );
+        for _ in 0..200 {
+            assert!(
+                !failures_limited("?"),
+                "unknown addresses are never locked out on /api or /mcp"
+            );
+        }
     }
 
     #[test]
