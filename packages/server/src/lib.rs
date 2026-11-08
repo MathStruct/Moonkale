@@ -124,11 +124,17 @@ pub(crate) mod reopen {
                     .sources
                     .first()
                     .is_some_and(|s| s.descriptor().family == SourceFamily::Folder);
-                let new_embed = is_folder && embed.is_some() && embed != entry.embed;
-                if !new_embed {
+                // Only folders are reused (their index is the costly part). A
+                // database file opens fresh each time, as before: a source
+                // that once fell back to read-only (a locked file) must not
+                // refuse every later write (CI on 6c5c1e3e, table-edit).
+                if !is_folder {
+                    None
+                } else if embed.is_none() || embed == entry.embed {
                     return Ok(entry.sources.iter().map(|s| s.descriptor()).collect());
+                } else {
+                    entry.sources.first().cloned()
                 }
-                entry.sources.first().cloned()
             } else {
                 None
             };
