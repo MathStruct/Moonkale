@@ -12,7 +12,6 @@ use sophia_store::query::{QueryLimits, Value as SValue, VIEWS};
 use sophia_store::sqlite::Sqlite;
 use sophia_store::StoreError;
 use std::collections::{BTreeSet, HashMap, VecDeque};
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -55,12 +54,18 @@ fn editable_key(key: &Key) -> bool {
 }
 
 fn text_version(node: NodeId, token: u64, text: &str) -> Version {
-    // An opaque equality token, never an authorisation or cryptographic identity.
-    let mut hash = std::collections::hash_map::DefaultHasher::new();
-    node.hash(&mut hash);
-    token.hash(&mut hash);
-    text.hash(&mut hash);
-    Version(hash.finish())
+    // An opaque equality token, never an authorisation. BLAKE3 rather than
+    // `DefaultHasher`, whose algorithm may change between Rust releases, so a
+    // version a client kept stays comparable across a server upgrade
+    // (review 2026-11-10, M-9).
+    let mut hash = blake3::Hasher::new();
+    hash.update(b"moonkale-sophia-text-version");
+    hash.update(node.0.as_bytes());
+    hash.update(&token.to_le_bytes());
+    hash.update(text.as_bytes());
+    Version(u64::from_le_bytes(
+        hash.finalize().as_bytes()[..8].try_into().expect("8 bytes"),
+    ))
 }
 
 #[derive(Default)]
@@ -1043,7 +1048,11 @@ impl Source for SophiaSource {
             if !sources.is_empty() {
                 return tokio::task::spawn_blocking(move || {
                     let mut bodies = Vec::new();
-                    let mut revision = 0u64;
+                    // Every part in order, with its span: an XOR of file ids
+                    // cancelled for two parts from one file (review
+                    // 2026-11-10, M-8).
+                    let mut revision = blake3::Hasher::new();
+                    revision.update(b"moonkale-sophia-folder-text");
                     for ts in sources {
                         let result = read_current(&root, &ts.path);
                         let mut markers = stale.lock().unwrap_or_else(|e| e.into_inner());
@@ -1055,7 +1064,9 @@ impl Source for SophiaSource {
                             }
                         };
                         let id = sophia_store::folder::source_record(&ts.path, &text).id;
-                        revision ^= u64::from_le_bytes(id.as_bytes()[..8].try_into().unwrap());
+                        revision.update(id.as_bytes());
+                        revision.update(&ts.start.to_le_bytes());
+                        revision.update(&ts.end.to_le_bytes());
                         if id != ts.source {
                             markers.insert(ts.path);
                             // Old spans cannot safely address newer text.
@@ -1070,6 +1081,9 @@ impl Source for SophiaSource {
                             bodies.push(body.to_string());
                         }
                     }
+                    let revision = revision.finalize();
+                    let revision =
+                        u64::from_le_bytes(revision.as_bytes()[..8].try_into().expect("8 bytes"));
                     Ok((bodies.join("\n"), Version(revision)))
                 })
                 .await

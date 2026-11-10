@@ -1058,3 +1058,46 @@ async fn refreshing_an_unknown_vanished_path_reads_nothing() {
     assert!(counting.reads.lock().unwrap().is_empty());
     assert_eq!(s.last_seq().unwrap(), seq, "the store is untouched");
 }
+
+/// Review 2026-11-10, M-8: the version of a generic read from a derived
+/// store was the XOR of its parts' file ids, so two methods in one file
+/// cancelled to 0 whatever the file held.
+#[tokio::test]
+async fn a_generic_with_two_methods_in_one_file_has_a_version_that_follows_the_file() {
+    let dir = fixture();
+    let (folder, index) = open(&dir).await;
+    let source = SophiaSource::open(dir.path().join(STORE_PATH))
+        .await
+        .unwrap();
+    let all = source
+        .query(Query::All {
+            limit: 1000,
+            kinds: None,
+        })
+        .await
+        .unwrap();
+    let f = all
+        .nodes
+        .iter()
+        .find(|n| n.native_key == "name:jl.P.f")
+        .unwrap()
+        .id;
+    let (text, before) = source.fetch_text(f).await.unwrap();
+    assert!(
+        text.contains("x::Int") && text.contains("x::Float64"),
+        "{text}"
+    );
+    assert_ne!(before, Version(0));
+    fs::write(
+        dir.path().join("a.jl"),
+        "const answer = 2\nf(x::Int) = x\nf(x::Float64) = x\ncaller(x) = f(x)\n",
+    )
+    .unwrap();
+    index
+        .refresh(NodeId::derive(&folder.id(), "a.jl"))
+        .await
+        .unwrap();
+    let (_, after) = source.fetch_text(f).await.unwrap();
+    assert_ne!(after, Version(0));
+    assert_ne!(before, after);
+}
