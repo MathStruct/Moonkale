@@ -17,8 +17,8 @@ blake3 = "1"
 moonkale-core = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rusqlite = { version = "0.40", features = ["bundled", "column_decltype"], optional = true }
-duckdb = { version = "1", features = ["bundled"], optional = true }
+rusqlite = { version = "0.40", features = ["bundled", "column_decltype", "hooks", "limits"], optional = true }
+duckdb = { version = "1", features = ["bundled", "json"], optional = true }
 tokio = { version = "1", features = ["rt"], optional = true }
 tracing = { version = "0.1", optional = true }
 # Turso (Milestone 17): the in-process Rust rewrite of SQLite (beta), SQLite file format.

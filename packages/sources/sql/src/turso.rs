@@ -23,6 +23,31 @@ use std::sync::RwLock;
 /// The most rows one text query returns. The table editor's grid is
 /// virtualised, so the cap guards memory and transfer, not drawing.
 pub const ROW_CAP: usize = 50_000;
+/// The first word of `sql` after leading comments.
+fn first_word(sql: &str) -> &str {
+    let mut s = sql.trim_start();
+    loop {
+        if let Some(rest) = s.strip_prefix("--") {
+            s = rest
+                .split_once('\n')
+                .map(|(_, r)| r)
+                .unwrap_or("")
+                .trim_start();
+        } else if let Some(rest) = s.strip_prefix("/*") {
+            s = rest
+                .split_once("*/")
+                .map(|(_, r)| r)
+                .unwrap_or("")
+                .trim_start();
+        } else {
+            break;
+        }
+    }
+    let end = s
+        .find(|c: char| !c.is_ascii_alphabetic())
+        .unwrap_or(s.len());
+    &s[..end]
+}
 
 pub struct TursoSource {
     id: SourceId,
@@ -301,6 +326,18 @@ impl Source for TursoSource {
                         )))
                     }
                 }
+                // Turso has no `stmt.readonly()`, so the text gate is all
+                // there is: no pragmas at all, since their read and assign
+                // forms are told apart only by syntax (review 2026-11-10,
+                // M-7: `PRAGMA application_id(1234)` wrote the header).
+                if first_word(&text).eq_ignore_ascii_case("PRAGMA") {
+                    return Err(SourceError::Unsupported(
+                        "pragmas are not run as text queries on a Turso source".into(),
+                    ));
+                }
+                // No time bound yet: the `turso` crate keeps its
+                // connection's `set_query_timeout` and `interrupt` private,
+                // and its step loop does not yield to a tokio timeout.
                 let table = self.rows(&text, ROW_CAP).await?;
                 let truncated = table.truncated;
                 Ok(QueryResult {
@@ -452,5 +489,43 @@ mod typed_tests {
         let source = TursoSource::open(&path).await.unwrap();
         let table = source.rows("SELECT * FROM dates", 10).await.unwrap();
         assert!(matches!(&table.rows[0][0], Value::DateTime(_)));
+    }
+}
+
+#[cfg(test)]
+mod review_2026_11_10 {
+    use super::*;
+
+    async fn text(src: &TursoSource, sql: &str) -> Result<QueryResult, SourceError> {
+        src.query(Query::Text {
+            dialect: "sql".into(),
+            text: sql.into(),
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn pragmas_do_not_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.db");
+        rusqlite::Connection::open(&path)
+            .unwrap()
+            .execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (1);")
+            .unwrap();
+        let src = TursoSource::open(&path).await.unwrap();
+        for sql in [
+            "PRAGMA application_id(1234)",
+            "/* x */ pragma application_id = 1234",
+            "PRAGMA application_id",
+        ] {
+            assert!(text(&src, sql).await.is_err(), "{sql}");
+        }
+        let id: i64 = rusqlite::Connection::open(&path)
+            .unwrap()
+            .query_row("PRAGMA application_id", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(id, 0);
+        let ok = text(&src, "SELECT count(*) FROM t").await.unwrap();
+        assert_eq!(ok.table.unwrap().rows[0][0], Value::Int(1));
     }
 }

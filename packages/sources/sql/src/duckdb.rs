@@ -26,6 +26,63 @@ pub const ROW_CAP: usize = 50_000;
 pub const DATA_EXTENSIONS: &[&str] = &["csv", "tsv", "parquet"];
 pub const DUCKDB_EXTENSIONS: &[&str] = &["duckdb", "ddb"];
 const MAX_DATA_FILES: usize = 200;
+/// What one text query may use: DuckDB's own `memory_limit`, and the time
+/// after which it is interrupted (review 2026-11-10, A-3).
+pub const QUERY_MEMORY_LIMIT: &str = "1GB";
+#[cfg(not(test))]
+pub const QUERY_TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+#[cfg(test)]
+pub const QUERY_TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Whether DuckDB's **own parser** sees `sql` as exactly one `SELECT`
+/// (`SHOW`, `DESCRIBE`, `SUMMARIZE`, `VALUES`, `FROM …` and CTEs are
+/// `SELECT`s to it), optionally under `EXPLAIN [ANALYZE]`. The text
+/// classifier decides what to tell the user; this decides what runs. It is
+/// needed because a data folder's connection is an in-memory database that
+/// cannot be opened read-only, and because `Connection::prepare` executes
+/// every statement before the last one (review 2026-11-10, A-1).
+fn engine_says_select(c: &Connection, sql: &str) -> duckdb::Result<bool> {
+    let one_select = |text: &str| -> duckdb::Result<bool> {
+        c.query_row(
+            "SELECT NOT coalesce((j->>'error')::BOOLEAN, true) \
+                    AND coalesce(json_array_length(j->'statements'), 0) = 1 \
+             FROM (SELECT json_serialize_sql(?::VARCHAR)::JSON AS j)",
+            [text],
+            |r| r.get::<_, bool>(0),
+        )
+    };
+    if one_select(sql)? {
+        return Ok(true);
+    }
+    // `EXPLAIN [ANALYZE] <select>`: strip the leading words and ask again.
+    let word = |rest: &mut &str, w: &str| {
+        let ok = rest.len() > w.len()
+            && rest[..w.len()].eq_ignore_ascii_case(w)
+            && rest[w.len()..].starts_with(char::is_whitespace);
+        if ok {
+            *rest = rest[w.len()..].trim_start();
+        }
+        ok
+    };
+    let mut rest = sql.trim_start();
+    if !word(&mut rest, "EXPLAIN") {
+        return Ok(false);
+    }
+    let _ = word(&mut rest, "ANALYZE") || word(&mut rest, "ANALYSE");
+    one_select(rest)
+}
+
+/// Stops [`DuckDbSource::run_read`]'s timer when the query ends, however
+/// it ends.
+struct StopTimer(Option<(std::sync::mpsc::Sender<()>, std::thread::JoinHandle<()>)>);
+impl Drop for StopTimer {
+    fn drop(&mut self) {
+        if let Some((done, timer)) = self.0.take() {
+            let _ = done.send(());
+            let _ = timer.join();
+        }
+    }
+}
 
 pub use crate::{is_data_path, is_duckdb_path};
 
@@ -80,7 +137,8 @@ impl DuckDbSource {
             })
             .and_then(|c| c.enable_external_access(false))
             .and_then(|c| c.enable_autoload_extension(false))
-            .and_then(|c| c.with("autoinstall_known_extensions", "false"))?;
+            .and_then(|c| c.with("autoinstall_known_extensions", "false"))
+            .and_then(|c| c.with("memory_limit", QUERY_MEMORY_LIMIT))?;
         let conn = Connection::open_with_flags(path, config)?;
         conn.execute_batch("SET lock_configuration = true")?;
         Ok(conn)
@@ -112,6 +170,7 @@ impl DuckDbSource {
         let config = Config::default()
             .enable_autoload_extension(false)
             .and_then(|c| c.with("autoinstall_known_extensions", "false"))
+            .and_then(|c| c.with("memory_limit", QUERY_MEMORY_LIMIT))
             .map_err(io)?;
         let conn = Connection::open_in_memory_with_flags(config).map_err(io)?;
         let mut used: HashMap<String, usize> = HashMap::new();
@@ -271,6 +330,22 @@ impl DuckDbSource {
 
     async fn run_read(&self, sql: String) -> Result<Table, SourceError> {
         self.blocking(move |c| {
+            if !engine_says_select(c, &sql)? {
+                return Err(duckdb::Error::InvalidParameterName(
+                    "only one SELECT (or EXPLAIN of one) runs as a text query".into(),
+                ));
+            }
+            // Interrupt the query when it runs out of time.
+            let (done, wait) = std::sync::mpsc::channel::<()>();
+            let interrupt = c.interrupt_handle();
+            let timer = std::thread::spawn(move || {
+                if let Err(std::sync::mpsc::RecvTimeoutError::Timeout) =
+                    wait.recv_timeout(QUERY_TIME_LIMIT)
+                {
+                    interrupt.interrupt();
+                }
+            });
+            let _stop = StopTimer(Some((done, timer)));
             let mut st = c.prepare(&sql)?;
             let mut it = st.query([])?;
             let mut columns: Vec<String> = Vec::new();
@@ -886,5 +961,86 @@ mod typed_tests {
             matches!(&row[6], Value::Text(_)),
             "out-of-range dates must not become NULL"
         );
+    }
+}
+
+#[cfg(test)]
+mod review_2026_11_10 {
+    use super::*;
+
+    async fn text(src: &DuckDbSource, sql: &str) -> Result<QueryResult, SourceError> {
+        src.query(Query::Text {
+            dialect: "sql".into(),
+            text: sql.into(),
+        })
+        .await
+    }
+
+    /// A-1: statements that once passed as reads change nothing in a data
+    /// folder, and the engine refuses them even without the classifier.
+    #[tokio::test]
+    async fn a_data_folder_cannot_be_written_through_a_text_query() {
+        let data = tempfile::tempdir().unwrap();
+        let people = data.path().join("people.csv");
+        std::fs::write(&people, "name\nAda\n").unwrap();
+        let src = DuckDbSource::open_data_folder(data.path()).unwrap();
+        let p = people.display().to_string();
+        let d = data.path().display().to_string();
+        let attempts = [
+            format!("EXPLAIN ANALYZE COPY (SELECT 'gone' AS name) TO '{p}'"),
+            "EXPLAIN ANALYZE CREATE TABLE z AS SELECT 42 AS x".to_string(),
+            format!("SELECT E'\\'' ; COPY (SELECT 'hidden' AS x) TO '{d}/hidden.csv'; --'"),
+            "SELECT E'\\'' ; DROP VIEW people; --'".to_string(),
+            format!("SELECT * FROM query('COPY (SELECT 1) TO ''{d}/q.csv''')"),
+            "SELECT 1; DROP VIEW people".to_string(),
+        ];
+        for sql in &attempts {
+            assert!(text(&src, sql).await.is_err(), "{sql}");
+            let engine = src
+                .blocking({
+                    let sql = sql.clone();
+                    move |c| engine_says_select(c, &sql)
+                })
+                .await;
+            // `query('…')` parses as a SELECT; the function itself refuses
+            // anything else when it runs.
+            if !sql.contains("query(") {
+                assert!(!matches!(engine, Ok(true)), "engine: {sql}");
+            }
+        }
+        assert_eq!(std::fs::read_to_string(&people).unwrap(), "name\nAda\n");
+        assert!(!data.path().join("hidden.csv").exists());
+        assert!(!data.path().join("q.csv").exists());
+        let n = text(&src, "SELECT count(*) FROM people").await.unwrap();
+        assert_eq!(n.table.unwrap().rows[0][0], Value::Int(1));
+        assert!(text(&src, "SELECT count(*) FROM z").await.is_err());
+        // Reads in all their forms still run.
+        for sql in [
+            "SELECT * FROM people",
+            "WITH a AS (SELECT * FROM people) SELECT * FROM a",
+            "DESCRIBE people",
+            "SHOW TABLES",
+            "EXPLAIN SELECT * FROM people",
+            "EXPLAIN ANALYZE SELECT * FROM people",
+        ] {
+            assert!(text(&src, sql).await.is_ok(), "{sql}");
+        }
+    }
+
+    /// A-3: a query that never ends is interrupted.
+    #[tokio::test]
+    async fn an_endless_query_is_interrupted() {
+        let data = tempfile::tempdir().unwrap();
+        std::fs::write(data.path().join("t.csv"), "a\n1\n").unwrap();
+        let src = DuckDbSource::open_data_folder(data.path()).unwrap();
+        let started = std::time::Instant::now();
+        let r = text(
+            &src,
+            "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r) \
+             SELECT count(*) FROM r",
+        )
+        .await;
+        assert!(r.is_err(), "{r:?}");
+        assert!(started.elapsed() < QUERY_TIME_LIMIT * 2);
     }
 }

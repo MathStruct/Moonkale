@@ -129,12 +129,15 @@ Moonkale renders and parses what it opens: Markdown (HTML inside it, KaTeX, Typs
   - what export and session bundles may contain (never secrets, never licensed data marked non-redistributable).
 
 ## The LLM relay (server)
-Since Milestone 18 phase 4.5 the server decides what a client's provider settings may make it do (`moonkale_server::llm::server_side`, audit #1): the client picks the kind, the model and the secret's *name*; a secret goes only to the provider's built-in endpoint or one the operator listed in `MOONKALE_LLM_ENDPOINTS` (comma-separated URL prefixes), and `claude-code` runs `MOONKALE_CLAUDE_BIN` or `claude` on the server's `PATH`, never a path from the client. A refusal reaches the client as an error, not a silent fallback.
+Since Milestone 18 phase 4.5 the server decides what a client's provider settings may make it do (`moonkale_server::llm::server_side`, audit #1): the client picks the kind, the model and the secret's *name*; a secret goes only to the provider's built-in endpoint or one the operator listed in `MOONKALE_LLM_ENDPOINTS` (comma-separated URLs, each optionally `URL=secret1|secret2` to name the only secrets it may receive), and `claude-code` runs `MOONKALE_CLAUDE_BIN` or `claude` on the server's `PATH`, never a path from the client. A refusal reaches the client as an error, not a silent fallback.
+
+Since the review of 2026-11-10 (C-5): entries match by parsed origin (scheme, host, port) and whole path segments, never by string prefix, and a URL with user info (`https://api.openai.com@evil.net`) is refused; the well-known secrets `anthropic` and `openai` go only to their own provider kind; and a request without a secret (`ollama`, or `openai` with no secret behind the name) goes only to loopback or a listed endpoint, so the server is not a proxy into its own network. Tests: `server_decides` in `packages/server/src/llm.rs`.
 
 ## Rules that follow from the audit
 1. **The server decides.** Anything that turns into a process, a network request with a secret, or a permission is resolved from the server's own settings, never from a value the client sends (#1, #4, #8). This is the main design input to phase 4 of [[Milestone 18 - Library Refactor]].
 2. **The workspace scope is data, not authority.** A folder may choose a theme, a layout or an editor; it may not name a command to run, grant a permission or point a secret at an endpoint (#8).
 3. **Read-only means read-only for the engine too.** A driver opened "read-only" must also be unable to read outside its file (#2: DuckDB's `read_csv`, `glob`).
+   The text classifier (`core/src/source/risk.rs`) decides what to *tell* the user and the agent's policy; the **engine** decides what runs (review 2026-11-10, A-1/A-2). SQLite text needs `stmt.readonly()`; DuckDB text must parse, by DuckDB's own parser (`json_serialize_sql`), as exactly one `SELECT` or `EXPLAIN [ANALYZE]` of one, because a data folder's in-memory connection cannot be read-only and `duckdb-rs`'s `prepare` executes every statement before the last; Turso has no engine check, so it runs no `PRAGMA` text. Every raw SQL path has a time and a value bound: SQLite 30 s (progress handler) and 64 MiB per value (`SQLITE_LIMIT_LENGTH`); DuckDB 30 s (interrupt) and `memory_limit = 1GB`. **Open:** Turso text queries have no time bound (the `turso` crate keeps `set_query_timeout` private); LadybugDB runs any statement on its read-only database (#9).
 4. **Every buffer has a bound** (#14), every path goes through one jail function (#5), every link scheme through one allow-list (#10).
 
 ## Status by area (to keep current)
@@ -729,7 +732,7 @@ checked quoted main-schema identifiers and bound values. Views, virtual tables,
 generated columns, read-only attachments and unusable keys refuse. Lossy cell
 projections cannot produce concurrency tokens. Row versions hash complete typed
 values with existing BLAKE3; they are opaque concurrency hints, not credentials.
-DuckDB query text uses a read-only file connection, so SELECT functions cannot mutate sequences. One stale or invalid operation rolls back the whole database batch. Preview validates versions and prepares EXPLAIN statements without executing writes, defaults or triggers, then rolls back its validation transaction; apply repeats the validation before any mutation. DuckDB retains
+DuckDB query text on a database file uses a read-only file connection, so SELECT functions cannot mutate sequences; a data folder's connection is in-memory and writable, so there only DuckDB's own parser check (one `SELECT`, rule 3) stands between query text and the folder. One stale or invalid operation rolls back the whole database batch. Preview validates versions and prepares EXPLAIN statements without executing writes, defaults or triggers, then rolls back its validation transaction; apply repeats the validation before any mutation. DuckDB retains
 external-access/extension restrictions and locked configuration on every file
 connection. Idle file connections close to permit external writers.
 

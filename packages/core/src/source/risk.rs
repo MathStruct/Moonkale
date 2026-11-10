@@ -73,34 +73,60 @@ pub fn classify_sql(sql: &str) -> Risk {
                 .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
                 .collect::<String>()
                 .to_ascii_uppercase();
-            const READ_PRAGMAS: &[&str] = &[
+            // Take a table or index name as their argument.
+            const NAMED_PRAGMAS: &[&str] = &[
                 "TABLE_INFO",
                 "TABLE_LIST",
                 "TABLE_XINFO",
                 "INDEX_INFO",
                 "INDEX_LIST",
                 "INDEX_XINFO",
+                "FOREIGN_KEY_LIST",
+                "INTEGRITY_CHECK",
+                "QUICK_CHECK",
+            ];
+            // Settable with `= value` *or* `(value)` — reads only bare.
+            const BARE_PRAGMAS: &[&str] = &[
                 "DATABASE_LIST",
                 "COLLATION_LIST",
                 "COMPILE_OPTIONS",
                 "FUNCTION_LIST",
                 "MODULE_LIST",
                 "PRAGMA_LIST",
-                "INTEGRITY_CHECK",
-                "QUICK_CHECK",
                 "ENCODING",
                 "PAGE_COUNT",
                 "PAGE_SIZE",
-                "FOREIGN_KEY_LIST",
                 "APPLICATION_ID",
             ];
-            if READ_PRAGMAS.contains(&name.as_str()) && !s.contains('=') {
+            let after = s["PRAGMA".len()..].trim_start()[name.len()..]
+                .trim()
+                .trim_end_matches(';')
+                .trim();
+            if (NAMED_PRAGMAS.contains(&name.as_str()) && !s.contains('='))
+                || (BARE_PRAGMAS.contains(&name.as_str()) && after.is_empty())
+            {
                 Risk::Read
             } else {
                 Risk::Unknown
             }
         }
-        "EXPLAIN" | "VALUES" | "SHOW" | "DESCRIBE" => Risk::Read,
+        "EXPLAIN" => {
+            let rest = s["EXPLAIN".len()..].trim_start();
+            if rest.starts_with('(') {
+                return Risk::Unknown;
+            }
+            let next: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_alphabetic())
+                .collect::<String>()
+                .to_ascii_uppercase();
+            if matches!(next.as_str(), "ANALYZE" | "ANALYSE") {
+                classify_sql(&rest[next.len()..])
+            } else {
+                Risk::Read
+            }
+        }
+        "VALUES" | "SHOW" | "DESCRIBE" => Risk::Read,
         "INSERT" | "UPDATE" | "DELETE" | "REPLACE" | "MERGE" => Risk::Write,
         "CREATE" | "DROP" | "ALTER" | "TRUNCATE" | "ATTACH" | "DETACH" | "VACUUM" => {
             Risk::Destructive
@@ -134,6 +160,13 @@ fn strip_comments(mut s: &str) -> &str {
 /// string literals. Conservative by design: a false positive only refuses a
 /// query, a false negative would let a write through the gate.
 fn contains_write_keyword(s: &str) -> bool {
+    contains_write_keyword_with(s, false) || contains_write_keyword_with(s, true)
+}
+
+/// `backslash`: whether `\` escapes a quote inside a literal (DuckDB's and
+/// Postgres' `E'…'`, MySQL). The callers try both and take the riskier
+/// reading, so a literal cannot hide text from one of them.
+fn contains_write_keyword_with(s: &str, backslash: bool) -> bool {
     let mut word = String::new();
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
@@ -142,7 +175,9 @@ fn contains_write_keyword(s: &str) -> bool {
                 word.clear();
                 // Skip to the closing quote (doubled quote is an escape).
                 while let Some(q) = chars.next() {
-                    if q == c {
+                    if backslash && q == '\\' {
+                        chars.next();
+                    } else if q == c {
                         if chars.peek() == Some(&c) {
                             chars.next();
                         } else {
@@ -253,7 +288,15 @@ fn words_outside_literals(text: &str) -> Vec<String> {
 
 /// How many non-empty statements `text` holds: `;` outside string
 /// literals, quoted identifiers and comments separates them.
+///
+/// Counted twice, with and without `\` as an escape inside literals, and
+/// the larger count wins: `SELECT E'\'' ; DROP …` is two statements to
+/// DuckDB, so it must be two here.
 pub fn statements(text: &str) -> usize {
+    statements_with(text, false).max(statements_with(text, true))
+}
+
+fn statements_with(text: &str, backslash: bool) -> usize {
     let mut count = 0;
     let mut current = false; // the current statement has content
     let mut chars = text.chars().peekable();
@@ -262,7 +305,9 @@ pub fn statements(text: &str) -> usize {
             '\'' | '"' | '`' => {
                 current = true;
                 while let Some(q) = chars.next() {
-                    if q == c {
+                    if backslash && q == '\\' {
+                        chars.next();
+                    } else if q == c {
                         if chars.peek() == Some(&c) {
                             chars.next(); // doubled quote: an escape
                         } else {
@@ -342,6 +387,44 @@ mod tests {
         assert_eq!(classify_sql("PRAGMA table_info(t)"), Risk::Read);
         assert_eq!(classify_sql("PRAGMA writable_schema=1"), Risk::Unknown);
         assert_eq!(classify_sql("PRAGMA journal_mode=WAL"), Risk::Unknown);
+    }
+
+    #[test]
+    fn review_2026_11_10_bypasses_are_closed() {
+        // A-2: EXPLAIN ANALYZE runs what it explains.
+        assert_eq!(
+            classify_sql("EXPLAIN ANALYZE COPY (SELECT 1) TO 'x.csv'"),
+            Risk::Unknown
+        );
+        assert_eq!(
+            classify_sql("explain analyse CREATE TABLE z AS SELECT 42"),
+            Risk::Destructive
+        );
+        assert_eq!(classify_sql("EXPLAIN ANALYZE SELECT 1"), Risk::Read);
+        assert_eq!(
+            classify_sql("EXPLAIN (ANALYZE) DELETE FROM t"),
+            Risk::Unknown
+        );
+        assert_eq!(classify_sql("EXPLAIN SELECT 1"), Risk::Read);
+        // A backslash-escaped quote hides a second statement from a
+        // classifier that only knows doubled quotes.
+        assert_eq!(
+            classify_sql("SELECT E'\\'' ; COPY (SELECT 1) TO 'h.csv'; --'"),
+            Risk::Unknown
+        );
+        assert_eq!(
+            classify_sql("SELECT E'\\'' ; DROP VIEW people; --'"),
+            Risk::Unknown
+        );
+        assert_eq!(
+            classify_sql("WITH t AS (SELECT 'a\\') INSERT INTO x VALUES (1) --')"),
+            Risk::Write
+        );
+        // The parenthesised form of a settable pragma assigns.
+        assert_eq!(classify_sql("PRAGMA application_id(1234)"), Risk::Unknown);
+        assert_eq!(classify_sql("PRAGMA page_size (4096)"), Risk::Unknown);
+        assert_eq!(classify_sql("PRAGMA application_id"), Risk::Read);
+        assert_eq!(classify_sql("PRAGMA application_id;"), Risk::Read);
     }
 
     #[test]

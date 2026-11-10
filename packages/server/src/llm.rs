@@ -75,10 +75,20 @@ pub(crate) fn provider_for(
 /// which program runs.
 /// - `claude-code`: the client's binary path is ignored — the server runs
 ///   `MOONKALE_CLAUDE_BIN`, else `claude` on its own `PATH`.
+/// - The well-known secrets `anthropic` and `openai` go only to their own
+///   provider kind: provider `openai` with secret `anthropic` is refused.
 /// - A provider that sends the resolved secret to `base_url` (OpenAI-
 ///   compatible) may only use its built-in endpoint or one the server's
-///   operator listed in `MOONKALE_LLM_ENDPOINTS` (comma-separated URL
-///   prefixes).
+///   operator listed in `MOONKALE_LLM_ENDPOINTS`.
+/// - A request without a secret (`ollama`, or `openai` with no secret behind
+///   the name) goes to loopback or a listed endpoint only, so the server is
+///   not a proxy into its own network.
+///
+/// `MOONKALE_LLM_ENDPOINTS` is comma-separated URLs, each optionally
+/// `URL=secret1|secret2` to name the only secrets that may go there.
+/// Entries match by parsed origin (scheme, host, port) and path segments,
+/// never by string prefix (review 2026-11-10, C-5: `https://api.example.com`
+/// admitted `https://api.example.com.evil.net`).
 #[cfg(feature = "server")]
 pub fn server_side(
     settings: &moonkale_llm::LlmSettings,
@@ -87,23 +97,120 @@ pub fn server_side(
     if s.provider == "claude-code" {
         s.base_url.clear();
     }
-    let sends_key = s.provider == "openai" && moonkale_llm::secrets::available(&s.secret);
+    let has_key = moonkale_llm::secrets::available(&s.secret);
+    let secret = s.secret.trim();
+    if has_key && matches!(secret, "anthropic" | "openai") && secret != s.provider {
+        return Err(format!(
+            "the secret {secret:?} belongs to the {secret} provider, not {:?}",
+            s.provider
+        ));
+    }
     let url = s.base_url.trim();
-    if sends_key && !url.is_empty() && url.trim_end_matches('/') != "https://api.openai.com/v1" {
-        let allowed = std::env::var("MOONKALE_LLM_ENDPOINTS").unwrap_or_default();
-        let listed = allowed
-            .split(',')
-            .map(str::trim)
-            .filter(|p| !p.is_empty())
-            .any(|p| url.starts_with(p));
-        if !listed {
+    let sends_url = matches!(s.provider.as_str(), "openai" | "ollama");
+    if !sends_url || url.is_empty() {
+        return Ok(s);
+    }
+    let target = Endpoint::parse(url).ok_or_else(|| format!("{url} is not an http(s) URL"))?;
+    let listed = std::env::var("MOONKALE_LLM_ENDPOINTS").unwrap_or_default();
+    let listed = listed
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .filter_map(|entry| {
+            let (url, names) = match entry.split_once('=') {
+                Some((u, n)) => (u.trim(), Some(n)),
+                None => (entry, None),
+            };
+            Some((Endpoint::parse(url)?, names))
+        })
+        .find(|(e, _)| e.admits(&target));
+    if has_key && s.provider == "openai" {
+        let builtin = Endpoint::parse("https://api.openai.com/v1").expect("valid");
+        let allowed = builtin.admits(&target)
+            || listed.is_some_and(|(_, names)| {
+                names.is_none_or(|n| n.split('|').any(|n| n.trim() == secret))
+            });
+        if !allowed {
             return Err(format!(
-                "this server sends the secret {:?} only to the provider's own endpoint or one listed in MOONKALE_LLM_ENDPOINTS; {url} is not",
-                s.secret
+                "this server sends the secret {secret:?} only to the provider's own endpoint or one listed for it in MOONKALE_LLM_ENDPOINTS; {url} is not"
             ));
         }
+    } else if !target.is_loopback() && listed.is_none() {
+        return Err(format!(
+            "without a secret this server calls only loopback or an endpoint listed in MOONKALE_LLM_ENDPOINTS; {url} is not"
+        ));
     }
     Ok(s)
+}
+
+/// A parsed `http(s)` URL: what [`server_side`] compares.
+#[cfg(feature = "server")]
+#[derive(Debug, PartialEq)]
+struct Endpoint {
+    scheme: String,
+    host: String,
+    port: u16,
+    /// Always ends with `/`, so `/v1` does not admit `/v1evil`.
+    path: String,
+}
+
+#[cfg(feature = "server")]
+impl Endpoint {
+    fn parse(url: &str) -> Option<Self> {
+        let (scheme, rest) = url.trim().split_once("://")?;
+        let scheme = scheme.to_ascii_lowercase();
+        let default_port = match scheme.as_str() {
+            "http" => 80,
+            "https" => 443,
+            _ => return None,
+        };
+        let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+        let (authority, tail) = rest.split_at(end);
+        // `https://api.openai.com@evil.net/` is a user name, not a host.
+        if authority.is_empty() || authority.contains(['@', '\\']) {
+            return None;
+        }
+        let (host, port) = if let Some(v6) = authority.strip_prefix('[') {
+            let (h, after) = v6.split_once(']')?;
+            (format!("[{h}]"), after.strip_prefix(':'))
+        } else {
+            match authority.rsplit_once(':') {
+                Some((h, p)) => (h.to_string(), Some(p)),
+                None => (authority.to_string(), None),
+            }
+        };
+        let port = match port {
+            Some(p) => p.parse().ok()?,
+            None => default_port,
+        };
+        let host = host.trim_end_matches('.').to_ascii_lowercase();
+        let path = tail.split(['?', '#']).next().unwrap_or("");
+        let path = format!("/{}/", path.trim_matches('/'));
+        let path = path.replace("//", "/");
+        Some(Self {
+            scheme,
+            host,
+            port,
+            path,
+        })
+    }
+
+    /// Whether this (listed) endpoint covers `target`.
+    fn admits(&self, target: &Endpoint) -> bool {
+        self.scheme == target.scheme
+            && self.host == target.host
+            && self.port == target.port
+            && target.path.starts_with(&self.path)
+    }
+
+    fn is_loopback(&self) -> bool {
+        self.host == "localhost"
+            || self.host == "[::1]"
+            || self
+                .host
+                .parse::<std::net::Ipv4Addr>()
+                .is_ok_and(|a| a.is_loopback())
+    }
 }
 
 /// [`provider_for`] with the refusal of [`server_side`] as the error.
@@ -415,6 +522,9 @@ mod server_decides {
     use super::server_side;
     use moonkale_llm::LlmSettings;
 
+    /// The tests below set the same environment variables.
+    static ENV: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn openai(base_url: &str, secret: &str) -> LlmSettings {
         LlmSettings {
             provider: "openai".into(),
@@ -430,6 +540,7 @@ mod server_decides {
     /// and the client never chooses the program that runs.
     #[test]
     fn the_server_decides_where_a_secret_goes_and_what_runs() {
+        let _env = ENV.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("MOONKALE_SECRET_E2E_KEY", "sk-test");
         std::env::remove_var("MOONKALE_LLM_ENDPOINTS");
         // The built-in endpoint, or none: fine.
@@ -446,11 +557,51 @@ mod server_decides {
         assert!(server_side(&openai("https://llm.lan/v1", "e2e_key")).is_ok());
         assert!(server_side(&openai("https://attacker.example/v1", "e2e_key")).is_err());
         std::env::remove_var("MOONKALE_LLM_ENDPOINTS");
-        // No secret behind the name: nothing to leak, any endpoint (a local server).
-        assert!(server_side(&openai("http://192.168.1.9:8000/v1", "no_such_secret")).is_ok());
+        // No secret behind the name: loopback, or a listed endpoint only.
+        assert!(server_side(&openai("http://127.0.0.1:8000/v1", "no_such_secret")).is_ok());
+        assert!(server_side(&openai("http://192.168.1.9:8000/v1", "no_such_secret")).is_err());
+        let mut ollama = openai("http://10.0.0.5:11434", "");
+        ollama.provider = "ollama".into();
+        assert!(server_side(&ollama).is_err());
+        ollama.base_url = "http://localhost:11434".into();
+        assert!(server_side(&ollama).is_ok());
+        ollama.base_url.clear();
+        assert!(server_side(&ollama).is_ok());
         // Claude Code: the client's binary path is dropped.
         let mut cc = openai("/tmp/evil", "");
         cc.provider = "claude-code".into();
         assert_eq!(server_side(&cc).unwrap().base_url, "");
+    }
+
+    /// Review 2026-11-10, C-5: prefixes, borrowed secrets, bound entries.
+    #[test]
+    fn endpoints_match_by_origin_and_secrets_by_provider() {
+        let _env = ENV.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("MOONKALE_SECRET_C5_KEY", "sk-test");
+        std::env::set_var("MOONKALE_SECRET_ANTHROPIC", "sk-ant-test");
+        std::env::set_var(
+            "MOONKALE_LLM_ENDPOINTS",
+            "https://api.example.com/v1, https://api.mistral.ai/v1=mistral|c5_other",
+        );
+        for evil in [
+            "https://api.example.com.evil.net/v1",
+            "https://api.example.com@evil.net/v1",
+            "https://api.example.com:8443/v1",
+            "http://api.example.com/v1",
+            "https://api.example.com/v1evil",
+            "https://api.openai.com.evil.net/v1",
+        ] {
+            assert!(server_side(&openai(evil, "c5_key")).is_err(), "{evil}");
+        }
+        assert!(server_side(&openai("https://API.example.com/v1/", "c5_key")).is_ok());
+        assert!(server_side(&openai("https://api.example.com/v1/chat", "c5_key")).is_ok());
+        // A bound entry takes only its own secrets.
+        assert!(server_side(&openai("https://api.mistral.ai/v1", "c5_key")).is_err());
+        // The Anthropic key never goes to an OpenAI-compatible endpoint,
+        // not even OpenAI's own.
+        assert!(server_side(&openai("", "anthropic")).is_err());
+        assert!(server_side(&openai("https://api.example.com/v1", "anthropic")).is_err());
+        std::env::remove_var("MOONKALE_LLM_ENDPOINTS");
+        std::env::remove_var("MOONKALE_SECRET_ANTHROPIC");
     }
 }

@@ -15,7 +15,7 @@ use moonkale_core::{
     SourceDescriptor, SourceError, SourceFamily, SourceId, Table, TextDialect, Transaction, Value,
     Version,
 };
-use rusqlite::{types::ValueRef, Connection, OpenFlags};
+use rusqlite::{limits::Limit, types::ValueRef, Connection, OpenFlags};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
@@ -23,6 +23,14 @@ use std::sync::{Arc, Mutex, RwLock};
 /// The most rows one text query returns. The table editor's grid is
 /// virtualised, so the cap guards memory and transfer, not drawing.
 pub const ROW_CAP: usize = 50_000;
+/// The longest a text query may run before it is interrupted.
+#[cfg(not(test))]
+pub const QUERY_TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(30);
+#[cfg(test)]
+pub const QUERY_TIME_LIMIT: std::time::Duration = std::time::Duration::from_secs(2);
+/// The largest string or blob a text query may make or return (SQLite's
+/// `SQLITE_LIMIT_LENGTH`, set for the query only).
+pub const QUERY_VALUE_LIMIT: i32 = 64 << 20;
 
 pub struct SqliteSource {
     id: SourceId,
@@ -146,9 +154,27 @@ impl SqliteSource {
         .await
     }
 
+    /// A text query, bounded: the engine must call it read-only
+    /// (`stmt.readonly()`), it is interrupted after [`QUERY_TIME_LIMIT`], and
+    /// no value it makes may exceed [`QUERY_VALUE_LIMIT`] bytes (review
+    /// 2026-11-10, A-3: a recursive CTE held the connection for 20 s and one
+    /// `zeroblob` cell took 0.9 GB).
     async fn run_read(&self, sql: String) -> Result<Table, SourceError> {
         self.blocking(move |c| {
-            let mut st = c.prepare(&sql)?;
+            let deadline = std::time::Instant::now() + QUERY_TIME_LIMIT;
+            c.progress_handler(10_000, Some(move || std::time::Instant::now() > deadline))?;
+            let length = c.set_limit(Limit::SQLITE_LIMIT_LENGTH, QUERY_VALUE_LIMIT)?;
+            let table = Self::read_rows(c, &sql);
+            c.progress_handler(0, None::<fn() -> bool>)?;
+            c.set_limit(Limit::SQLITE_LIMIT_LENGTH, length)?;
+            table
+        })
+        .await
+    }
+
+    fn read_rows(c: &Connection, sql: &str) -> rusqlite::Result<Table> {
+        {
+            let mut st = c.prepare(sql)?;
             if !st.readonly() {
                 return Err(rusqlite::Error::InvalidQuery);
             }
@@ -189,8 +215,7 @@ impl SqliteSource {
                 rows,
                 truncated,
             })
-        })
-        .await
+        }
     }
 
     /// The schema as a graph: database → tables → columns.
@@ -519,5 +544,49 @@ mod typed_tests {
         assert!(matches!(&table.rows[0][0], Value::DateTime(d) if d.offset() == Some(7200)));
         assert!(matches!(&table.rows[0][1], Value::Text(_)));
         assert_eq!(table.rows[0][2], Value::Text("bad".into()));
+    }
+}
+
+#[cfg(test)]
+mod review_2026_11_10 {
+    use super::*;
+
+    async fn text(src: &SqliteSource, sql: &str) -> Result<QueryResult, SourceError> {
+        src.query(Query::Text {
+            dialect: "sql".into(),
+            text: sql.into(),
+        })
+        .await
+    }
+
+    /// A-3: no time or memory bound on a text query.
+    #[tokio::test]
+    async fn text_queries_are_bounded_in_time_and_value_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.sqlite");
+        Connection::open(&path)
+            .unwrap()
+            .execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (1);")
+            .unwrap();
+        let src = SqliteSource::open(&path).unwrap();
+        let started = std::time::Instant::now();
+        let endless = text(
+            &src,
+            "WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r) \
+             SELECT count(*) FROM r",
+        )
+        .await;
+        assert!(endless.is_err(), "{endless:?}");
+        assert!(started.elapsed() < QUERY_TIME_LIMIT * 3);
+        let big = text(&src, "SELECT length(hex(zeroblob(300000000)))").await;
+        assert!(big.is_err(), "{big:?}");
+        // The connection is usable afterwards, limits restored for writes.
+        let ok = text(&src, "SELECT count(*) FROM t").await.unwrap();
+        assert_eq!(ok.table.unwrap().rows[0][0], Value::Int(1));
+        let length = src
+            .blocking(|c| c.limit(Limit::SQLITE_LIMIT_LENGTH))
+            .await
+            .unwrap();
+        assert!(length > QUERY_VALUE_LIMIT);
     }
 }
