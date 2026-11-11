@@ -199,6 +199,14 @@ normaliser didn't start with `moonkale-wp66@`, so the folder store's
 definitions verified as Invalid; v0.1.11 also accepts `moonkale-wp66-`. Raw
 reports: `history-2026-11-08-{lenticulum,moonkale}-{v0.1.9,v0.1.11}.jsonl`.
 
+**Rerun on Sophia v0.1.12** (2026-11-11, after Fable's review: counters fail
+on malformed or underflowing values instead of reading 0, `InvalidBatch` for
+malformed batches, `set_settings` limited to its own prefixes): the same
+per-commit counts as v0.1.11, the switch at the same commits, give_truth
+2,473 → 1,770 (Lenticulum.jl) and 7,840 → 5,940 (Moonkale), 0 differences and
+0 errors; no counter or batch error. Raw reports:
+`history-2026-11-11-{lenticulum,moonkale}-v0.1.12.jsonl`.
+
 ## ADR-0029 gate 4: history replay (2026-10-24)
 
 **Current: Sophia v0.1.4** (`919d723`, 2026-10-26): `replace_files` refuses

@@ -592,9 +592,10 @@ fn store_error(e: StoreError) -> SourceError {
             expected: Version(expected),
             actual: Version(found),
         },
-        StoreError::NameExists(_) | StoreError::InvalidPath { .. } => {
-            SourceError::Invalid(e.to_string())
-        }
+        StoreError::NameExists(_)
+        | StoreError::InvalidPath { .. }
+        | StoreError::InvalidBatch { .. }
+        | StoreError::NotASetting { .. } => SourceError::Invalid(e.to_string()),
         StoreError::QueryRefused(m) => SourceError::Unsupported(format!("query refused: {m}")),
         e => SourceError::Io(e.to_string()),
     }
