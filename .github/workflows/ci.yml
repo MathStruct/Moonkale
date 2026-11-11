@@ -200,6 +200,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ci-test
+      - name: Drop DuckDB source trees the cache restored incomplete
+        # libduckdb-sys treats a tree without .complete as unfinished and its
+        # rename onto it fails with ENOTEMPTY.
+        shell: bash
+        run: |
+          for d in target/duckdb-sources/*/ target/*/duckdb-sources/*/; do
+            if [ -d "$d" ] && [ ! -e "$d.complete" ]; then rm -rf "$d"; fi
+          done
       - name: cargo test
         run: cargo test --workspace --locked
       - name: Sophia folder history replay (hermetic)
@@ -286,6 +294,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: ci-e2e
+      - name: Drop DuckDB source trees the cache restored incomplete
+        # libduckdb-sys treats a tree without .complete as unfinished and its
+        # rename onto it fails with ENOTEMPTY.
+        shell: bash
+        run: |
+          for d in target/duckdb-sources/*/ target/*/duckdb-sources/*/; do
+            if [ -d "$d" ] && [ ! -e "$d.complete" ]; then rm -rf "$d"; fi
+          done
       - uses: actions/setup-node@v4
         with:
           node-version: 22

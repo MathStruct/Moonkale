@@ -75,6 +75,14 @@ jobs:
       - name: Dioxus CLI
         run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
       - uses: Swatinem/rust-cache@v2
+      - name: Drop DuckDB source trees the cache restored incomplete
+        # libduckdb-sys treats a tree without .complete as unfinished and its
+        # rename onto it fails with ENOTEMPTY.
+        shell: bash
+        run: |
+          for d in target/duckdb-sources/*/ target/*/duckdb-sources/*/; do
+            if [ -d "$d" ] && [ ! -e "$d.complete" ]; then rm -rf "$d"; fi
+          done
       - name: Build and package
         run: MOONKALE_VERSION="${{ needs.meta.outputs.pkgver }}" packaging/build-release.sh --no-arch
       - name: AppImage (dx bundle)
@@ -141,6 +149,14 @@ jobs:
       - name: Dioxus CLI
         run: cargo binstall -y dioxus-cli@${{ env.DX_VERSION }}
       - uses: Swatinem/rust-cache@v2
+      - name: Drop DuckDB source trees the cache restored incomplete
+        # libduckdb-sys treats a tree without .complete as unfinished and its
+        # rename onto it fails with ENOTEMPTY.
+        shell: bash
+        run: |
+          for d in target/duckdb-sources/*/ target/*/duckdb-sources/*/; do
+            if [ -d "$d" ] && [ ! -e "$d.complete" ]; then rm -rf "$d"; fi
+          done
       - name: Bundle
         run: cd packages/desktop && dx bundle --platform desktop --release --features desktop --package-types msi --package-types nsis
       - uses: actions/upload-artifact@v4
@@ -173,6 +189,14 @@ jobs:
         run: |
           cargo binstall -y --targets "$(rustc -vV | sed -n 's/host: //p')" dioxus-cli@${{ env.DX_VERSION }}
       - uses: Swatinem/rust-cache@v2
+      - name: Drop DuckDB source trees the cache restored incomplete
+        # libduckdb-sys treats a tree without .complete as unfinished and its
+        # rename onto it fails with ENOTEMPTY.
+        shell: bash
+        run: |
+          for d in target/duckdb-sources/*/ target/*/duckdb-sources/*/; do
+            if [ -d "$d" ] && [ ! -e "$d.complete" ]; then rm -rf "$d"; fi
+          done
       - name: Bundle
         run: cd packages/desktop && dx bundle --platform desktop --release --features desktop --package-types dmg
       # No renaming: dx already puts the architecture in the name
@@ -212,6 +236,14 @@ jobs:
       - name: Pillow (launcher icons)
         run: pip3 install --user pillow
       - uses: Swatinem/rust-cache@v2
+      - name: Drop DuckDB source trees the cache restored incomplete
+        # libduckdb-sys treats a tree without .complete as unfinished and its
+        # rename onto it fails with ENOTEMPTY.
+        shell: bash
+        run: |
+          for d in target/duckdb-sources/*/ target/*/duckdb-sources/*/; do
+            if [ -d "$d" ] && [ ! -e "$d.complete" ]; then rm -rf "$d"; fi
+          done
       - name: Release keystore (skipped when the secret is absent)
         # A stable signature, so one release installs over the last (P-131).
         # Without the secret the script falls back to a debug key and the
