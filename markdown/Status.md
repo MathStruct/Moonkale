@@ -5,6 +5,10 @@ tags: [status, moc]
 ---
 **This page is the single place for "where are we".** The landing page, [[Home]], the README and the [[Roadmap]] link here instead of repeating it. Update it at the end of every milestone. Checked against the code on **2026-10-01** (`refactor` branch = `master` + Milestone 17).
 
+## Next session
+
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-17.** The backlog convention starts today: finished packages move from [[Work Packages]] to `markdown/Backlog/Backlog Done <yyyy-mm>.md`. **Next task:** move the packages that are already done (✅ on this page, e.g. WP-40) out of Work Packages into `Backlog Done 2026-11.md` (and earlier months where the date is known), then name the next open package here.
+
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
 ## Plot quick look (WP-40, 2026-10-30)

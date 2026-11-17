@@ -16,10 +16,18 @@ You are working on **Moonkale**, a graph-native code and knowledge editor in Rus
 
 ## How the agents work together
 
-- **Worktrees.** Claude keeps `master` and the main checkout (`~/Code/Moonkale/Moonkale`). Every other agent works in its own worktree (`~/Code/Moonkale/Moonkale-<agent>`) on its own branch: `codex`, `dev-mistral`, `dev-claude`, or `wp-NN-<slug>` for a work package. Contributor branches merge into master only when Daniel says so.
+- **Worktrees.** Claude keeps `master` and the main checkout (`~/Code/Moonkale/Moonkale`). Every other agent works in its own worktree (`~/Code/Moonkale/Moonkale-<agent>`) on its own branch: `codex`, `dev-mistral`, `dev-claude`, or `wp-NN-<slug>` for a work package. Codex (GPT) implements in `~/Code/Moonkale/Moonkale-codex` (branch `codex`, or a `wp-NN-<slug>` branch made there); it does not commit unless its brief says so, and never pushes. Contributor branches merge into master only when Daniel says so.
 - **Target dirs.** Each worktree builds into its own `CARGO_TARGET_DIR` (for example `target/agent`). Never share another worktree's target dir. Never build in `/tmp`: it is tmpfs and too small.
+- **Clean your target dir.** Every agent, Claude and Codex included, cleans up after itself: Dioxus builds grow a target dir by tens of gigabytes, and cargo never removes old states (the worktrees held 13–140 GB each on 2026-11-17). At the end of a session that compiled, run `du -sh` on your own worktree's target dir; over **30 GB**, `cargo clean` it (with the same `CARGO_TARGET_DIR`) and say so in your report. Clean only your own worktree's, never another's, and not while a build of yours is running.
 - **Handoffs.** Notes between agents are untracked `*-from-<agent>.md` files in the receiver's worktree root (`HANDOFF-…`, `NEXT-…`, `REVIEW-…`). Read yours when you start.
 - **Numbers.** ADR and P- numbers come from the reservation table in Work Packages. Problems go into `markdown/problems/Problem Log.md` with `markdown/templates/Problem Template.md`; decisions use `markdown/templates/ADR Template.md`.
+
+## One task per session
+
+Sessions are kept short to save tokens: one task, then a fresh session.
+
+- **Start:** read the "Next session" section at the top of `markdown/Status.md`; it names your task and what to read for it. Read only those pages.
+- **End:** follow "One task per session" in `markdown/Backlog/Backlog.md`: the task's row moves to the month's `Backlog Done <yyyy-mm>.md`, and the "Next session" section of Status is **overwritten** with the next task. Then report to Daniel and suggest a fresh session.
 
 ## Before you commit: the gates (what CI runs)
 
