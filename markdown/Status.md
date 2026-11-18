@@ -7,11 +7,11 @@ tags: [status, moc]
 
 ## Next session
 
-*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** Finished: CI green again (9e567d85: clippy 1.100 `needless_bool`; quinn-proto, quinn-udp, libz-sys, rustix patch bumps; dated exceptions for unmaintained chrono and humantime, replacement is Daniel's call); the October packages moved to `Backlog/Backlog Done 2026-10.md`; WP-40 step 2 (source aggregation, `.plot.json` specs, SVG export; agy's work, finished after a Codex review: four findings fixed with regression tests, one more from Mistral's probes). **Next task:** WP-40's live plots (PLT-09, the Lenticulum driver): read [[Plotting Requirements]], `packages/extensions/plot/plot.md` and [[Julia and Lenticulum]]; write the design into the WP-40 row before coding. Open for Daniel: PDF/PNG plot export needs `plotters` or a raster backend (a new dependency). Locally, Rust 1.100.0 is installed beside stable (CI's stable is 1.100; local stable is 1.98, whose clippy misses new lints).
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** Finished: WP-40 live plots (PLT-09) for file-backed SQL sources (see [[Backlog Done 2026-11]]): SQLite, DuckDB (files, CSV/Parquet data folders) and Turso report changes by a fingerprint of their files, polled about once a second; tables re-run (pushed-down grids reload in place) and linked plots redraw in place, source aggregates included. Gates and the browser suites plot, plot-live, table-edit, table-grid, duckdb, watch and links-sqlite pass. **Next task:** WP-08 (ADR-0022 stage C: a subsystem as one factor, RxInfer codegen through it), the Lenticulum chain that unblocks WP-37 plates and WP-38 live runs (and with it PLT-09's scrub cursor, LT-12). Read [[ADR-0022 Bipartite factor graphs]], [[Julia and Lenticulum]], `packages/editors/flow` and `../moonkale-julia`; write the design into the WP-08 row before coding. WP-55 (benchmarks) stays deferred. Open for Daniel: PDF/PNG plot export needs `plotters` or a raster backend (a new dependency). Locally, Rust 1.100.0 is installed beside stable (CI's stable is 1.100; local stable is 1.98, whose clippy misses new lints).
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
-## Plot quick look (WP-40, 2026-10-30; step 2 2026-11-18)
+## Plot quick look (WP-40, 2026-10-30; step 2 and live data 2026-11-18)
 
 ✅ Done 2026-10-31. Optional default-on Plot adds a linked SVG
 panel from any held table result, with automatic line/scatter/bar/histogram,
@@ -25,8 +25,14 @@ covers the whole table in 349 ms, not partial. Plots save as versioned
 `.plot.json` specs (PLT-04; bounded, fuzzed parser) that reopen after reload, and
 export as SVG. Tests: the aggregate against a brute-force reference on all three
 engines (including the review regressions), spec round-trips/refusals, spec source
-confinement, 60 s of fuzzing, and `plot.mjs`. Live data (PLT-09) and PDF/PNG
-export remain later. See [[Plotting Requirements]].
+confinement, 60 s of fuzzing, and `plot.mjs`. PDF/PNG export remain later. See [[Plotting Requirements]].
+
+✅ Live data (PLT-09), 2026-11-18. A table over a SQLite, DuckDB or Turso file,
+or over a folder of CSV/Parquet files, follows changes other programs make
+(polled about once a second by file fingerprint); its plot redraws in place with
+its zoom, and source aggregates are re-requested without a partial flicker. A
+training run only appends to its metrics CSV. The scrub cursor (LT-12) waits for
+WP-38's run records.
 
 ## Proposals and optimistic text writes (WP-49 first slice, 2026-10-30)
 

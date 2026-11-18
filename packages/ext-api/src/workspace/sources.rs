@@ -465,11 +465,27 @@ impl Workspace {
     pub(super) async fn follow(mut self, id: SourceId) {
         let mut since = 0u64;
         let mut failures = 0u32;
+        let mut last_asked = 0u64;
         loop {
-            // Closed while the last poll was pending: stop.
+            // File-backed databases answer at once instead of long-polling
+            // (PLT-09): ask them at most once per interval, also while they
+            // keep reporting news. The answer itself is handled as soon as it
+            // arrives. Long-polling sources (folders, stores) keep their pace.
+            let since_last = super::now_ms().saturating_sub(last_asked);
+            let paced = self
+                .source(&id)
+                .is_some_and(|s| s.descriptor().family == moonkale_core::SourceFamily::Sql);
+            if paced && since_last < FOLLOW_INTERVAL_MS {
+                futures_timer::Delay::new(std::time::Duration::from_millis(
+                    FOLLOW_INTERVAL_MS - since_last,
+                ))
+                .await;
+            }
+            // Closed while the last poll (or the pause) was pending: stop.
             let Some(source) = self.source(&id) else {
                 break;
             };
+            last_asked = super::now_ms();
             match source.changes_since(since).await {
                 Ok(None) => break,
                 Ok(Some(changes)) => {
@@ -482,6 +498,18 @@ impl Workspace {
                     let first = since == 0;
                     since = changes.seq;
                     if first || self.source(&id).is_none() {
+                        continue;
+                    }
+                    // A database's rows changed: the tables over it re-read
+                    // on `data_epochs`; its schema graph and documents stay.
+                    // Other sources keep their path below and no epoch, so a
+                    // table over a store does not re-run on its changes.
+                    if source.descriptor().family == moonkale_core::SourceFamily::Sql {
+                        if changes.reset || !changes.paths.is_empty() {
+                            self.sources.data_epochs.with_mut(|e| {
+                                *e.entry(id.clone()).or_default() += 1;
+                            });
+                        }
                         continue;
                     }
                     if changes.reset {
@@ -622,6 +650,11 @@ pub struct SourcesState {
     /// status bar re-reads on it. Bumping `graph_epoch` instead reloads every
     /// graph and editor view.
     pub code_graph_status_epoch: Signal<u64>,
+    /// Bumped per SQL source whenever its follow loop reports a change made
+    /// outside Moonkale (PLT-09): a table over the source re-runs its query,
+    /// and plots of that table update in place. A source missing here has
+    /// not changed since it was opened.
+    pub data_epochs: Signal<std::collections::HashMap<SourceId, u64>>,
 }
 
 impl SourcesState {
@@ -633,9 +666,15 @@ impl SourcesState {
             fs_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             graph_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
             code_graph_status_epoch: Signal::new_in_scope(0, ScopeId::ROOT),
+            data_epochs: Signal::new_in_scope(std::collections::HashMap::new(), ScopeId::ROOT),
         }
     }
 }
+
+/// The shortest time between two `changes_since` calls to a SQL source,
+/// which answers at once: about once a second, the live latency of a plot
+/// over a growing file.
+const FOLLOW_INTERVAL_MS: u64 = 1000;
 
 /// A folder's derived Sophia cache (`.moonkale/code.sophia`, ADR-0029/0030):
 /// files stay the truth, and the folder's index keeps it in step.

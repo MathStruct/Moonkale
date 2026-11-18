@@ -509,7 +509,12 @@ fn PlotData(
 
     // PLT-11: Pushdown database aggregation for histograms and bars.
     let mut agg_cache = use_signal(|| None::<AggCacheEntry>);
-    let mut agg_inflight = use_signal(|| None::<(SourceId, String, moonkale_core::TableAggregate)>);
+    let mut agg_inflight =
+        use_signal(|| None::<(SourceId, String, moonkale_core::TableAggregate, u64)>);
+    // PLT-09: the source's data epoch the cached aggregate was computed at. A
+    // newer epoch (the file changed outside Moonkale) asks again, and the
+    // cached aggregate stays on screen until the new one arrives.
+    let mut agg_epoch = use_signal(|| 0u64);
     let agg_request = use_memo(move || {
         let current = held.read();
         let table = current.0.table.as_ref()?;
@@ -561,17 +566,24 @@ fn PlotData(
     moonkale_ext_api::crash::use_effect(move || {
         let _open_sources = ws.sources.open.read().len();
         if let Some((src_id, tbl, req)) = agg_request.read().clone() {
-            let already = agg_cache
-                .peek()
-                .as_ref()
-                .is_some_and(|(s, t, r, _)| s == &src_id && t == &tbl && r == &req)
-                || agg_inflight
+            let epoch = ws
+                .sources
+                .data_epochs
+                .read()
+                .get(&src_id)
+                .copied()
+                .unwrap_or(0);
+            let already = (*agg_epoch.peek() == epoch
+                && agg_cache
                     .peek()
                     .as_ref()
-                    .is_some_and(|(s, t, r)| s == &src_id && t == &tbl && r == &req);
+                    .is_some_and(|(s, t, r, _)| s == &src_id && t == &tbl && r == &req))
+                || agg_inflight.peek().as_ref().is_some_and(|(s, t, r, e)| {
+                    s == &src_id && t == &tbl && r == &req && *e == epoch
+                });
             if !already {
                 if let Some(source) = ws.source(&src_id) {
-                    agg_inflight.set(Some((src_id.clone(), tbl.clone(), req.clone())));
+                    agg_inflight.set(Some((src_id.clone(), tbl.clone(), req.clone(), epoch)));
                     moonkale_ext_api::crash::spawn(async move {
                         let t0 = moonkale_ext_api::workspace::now_ms();
                         let res = source
@@ -579,7 +591,16 @@ fn PlotData(
                             .await
                             .map(|r| (r, moonkale_ext_api::workspace::now_ms().saturating_sub(t0)))
                             .map_err(|e| e.to_string());
+                        // A newer request (other columns, a newer epoch) was
+                        // sent meanwhile: this answer is outdated.
+                        let current = agg_inflight.peek().as_ref().is_some_and(|(s, t, r, e)| {
+                            s == &src_id && t == &tbl && r == &req && *e == epoch
+                        });
+                        if !current {
+                            return;
+                        }
                         agg_cache.set(Some((src_id, tbl, req, res)));
+                        agg_epoch.set(epoch);
                         agg_inflight.set(None);
                     });
                 }

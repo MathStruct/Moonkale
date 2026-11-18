@@ -34,7 +34,9 @@ try {
     console.log("\n  rows:", (await rows()).filter((r) => !r.includes("/")).join(" "));
   });
   await step("…and in the index: the search finds it", async () => {
-    await page.click(".mk-explorer");
+    // A corner, not the centre: the centre can be a tree row (the CODE rows),
+    // and opening it would take the focus from the search box.
+    await page.click(".mk-explorer", { position: { x: 4, y: 4 } });
     await page.keyboard.press("Control+Shift+F");
     await page.waitForFunction(() => document.activeElement?.id === "mk-search-input", null, { timeout: 10000 });
     await page.keyboard.type("behind the app");
@@ -64,10 +66,17 @@ try {
     if (r.some((x) => x.startsWith(".secret") || x.startsWith("target"))) throw new Error("hidden/ignored rows: " + r.join(" "));
     await page.screenshot({ path: `${S}/m16-watch.png` });
   });
-  await step("a database source is not watched: it has ↻, which re-reads it", async () => {
+  await step("a database file is watched too (PLT-09): no ↻; its context menu re-reads it", async () => {
     await page.click(".mk-tree-db >> text=data.sqlite");
-    await page.waitForSelector(".mk-explorer-source-name:has-text('data.sqlite') .mk-source-refresh", { timeout: 15000 });
-    await page.click(".mk-explorer-source-name:has-text('data.sqlite') .mk-source-refresh");
+    const name = ".mk-explorer-source-name:has-text('data.sqlite')";
+    await page.waitForSelector(name, { timeout: 15000 });
+    // Its first changes_since answer arrives within about a second; the ↻ goes then.
+    await page.waitForFunction(() => {
+      const row = [...document.querySelectorAll(".mk-explorer-source-name")].find((e) => e.textContent.includes("data.sqlite"));
+      return row && !row.querySelector(".mk-source-refresh");
+    }, null, { timeout: 15000 });
+    await page.click(name, { button: "right" });
+    await page.click(".mk-ctx-item:text-is('Refresh')");
     await page.waitForFunction(() => /Refreshed data\.sqlite/.test(document.querySelector(".wb-status-bar").textContent), null, { timeout: 10000 });
     // The context menu offers Refresh for every source.
     await page.click(".mk-explorer-source-name:has-text('m2root')", { button: "right" });

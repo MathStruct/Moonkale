@@ -57,6 +57,25 @@ against a brute-force reference.
 query decimation, the million-row source-aggregated histogram (whole table, with
 a grid filter), Export SVG, Save plot and reopening the saved spec after reload.
 
+Live data (PLT-09, 2026-11-18). A plot follows its table, and the table follows
+its source: SQLite, DuckDB (files and data folders of CSV/TSV/Parquet) and Turso
+answer `changes_since` at once with a fingerprint of their files (length and
+modification time of the database, its journals, or the data files; see
+`sources/sql/src/stamp.rs`). The follow loop asks them about once a second and
+bumps `SourcesState::data_epochs`. A table re-runs its query on a newer epoch; a
+pushed-down grid reloads its first page in place with its filters, except while
+a load or edit runs or while the user has undoable edits or pinned rows (Refresh
+is theirs then). The plot keeps its component, spec, zoom and selection, and
+re-requests a source aggregate on a newer epoch while the previous one stays
+drawn; outdated aggregate answers are dropped. A Lenticulum or any training run
+needs no driver: append rows (`step,loss,…`) to a CSV in a run folder, or insert
+into a SQLite table, and open that folder or file. Bounds: line and scatter plots
+of a pushed-down grid draw the loaded pages (the first 1000 rows after a reload),
+so a long log is better plotted from a query (`SELECT … ORDER BY step DESC LIMIT
+50000`), which re-runs whole. The scrub cursor (LT-12) waits for run records
+(WP-38). `plot-live.mjs` appends to a CSV and inserts into a SQLite run database
+and checks that grid, plot and source aggregate follow without a click.
+
 Uniform sampling always retains an explicitly selected current row (replacing
 one middle sample within the same cap). Aggregated marks highlight when any
 constituent row is selected. Plot tabs can dock locally; moving held plot data

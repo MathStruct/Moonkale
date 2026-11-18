@@ -334,3 +334,12 @@ column named `b`, composite keys choosing the wrong bar categories, and finite
 ranges overflowing `hi - lo`; Mistral's probes added bar sums overflowing f64.
 All reproduced by failing tests on SQLite, DuckDB and Turso, fixed, tests kept.
 
+## P-244 — Live plot review findings (2026-11-18)
+
+**Status:** resolved before merge · [[P-244 Live plot review findings]]
+
+Codex's review of the live plots (PLT-09) found a change during a pushed-down
+grid's first read left grid and plot stale (the grid started from the epoch at
+mount, not at the read), and data epochs bumped for stores, which re-ran their
+tables; Mistral found Turso and DuckDB files untested. All fixed; tests added
+for the second and third.

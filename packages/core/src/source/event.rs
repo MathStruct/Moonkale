@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Changes {
     /// The log position after these changes; pass it as the next `since`.
+    /// Opaque to consumers: never 0, but not necessarily increasing (a
+    /// file-backed database answers with a fingerprint of its files, PLT-09).
     pub seq: u64,
     /// Relative paths (`/`-separated, as in `Node::native_key`) that changed
     /// after `since`, oldest first, without duplicates. Empty when the poll

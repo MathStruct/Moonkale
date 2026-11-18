@@ -85,3 +85,15 @@ Opening the file shows the plot; Save plot writes one. Export SVG writes the pan
 own SVG. Colour/size/shape/facet encodings, PDF/PNG export (they need `plotters`
 or a raster backend, a new dependency: Daniel's call) and live data remain later.
 Details: `packages/extensions/plot/plot.md`.
+
+**Live data (PLT-09, 2026-11-18).** Built for file-backed SQL sources, which is
+what a training run can write today without `Moonkale.jl` (WP-38): rows appended
+to a CSV in a run folder (opened as a DuckDB data folder), or inserted into a
+SQLite, DuckDB or Turso file. Those sources report changes by a fingerprint of
+their files, polled about once a second; the table re-runs (a pushed-down grid
+reloads in place with its filters) and the linked plot redraws in place,
+keeping its zoom and selection; source aggregates are re-requested without
+falling back to partial rows meanwhile. Line/scatter of a pushed-down grid draw
+its loaded pages, so long logs are plotted from a query. Remaining: the scrub
+cursor shared by linked plots (LT-12), which needs run records and a run time
+axis (WP-38), and streaming sources that are not files.

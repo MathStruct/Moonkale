@@ -1,5 +1,10 @@
 # Changelog — the library crates
 
+## Unreleased — live plots (WP-40 PLT-09, 2026-11-18)
+
+- `Changes::seq` is documented as opaque (never 0, not necessarily increasing). SQLite, DuckDB (files and data folders) and Turso now answer `Source::changes_since` at once with a fingerprint of their files instead of `Ok(None)`, so they count as watched.
+- `SourcesState::data_epochs` counts, per `SourceFamily::Sql` source, the changes its follow loop reported. Tables re-run on it; plots re-request source aggregates. For SQL sources the follow loop asks at most once a second and bumps only `data_epochs` (no index refresh, no document reload); other sources follow as before.
+
 ## Unreleased — source aggregation and plot specs (WP-40 step 2, 2026-11-18)
 
 - Core adds bounded `TableAggregate` (histogram or bar, grid filters), `TableAggregateResult`/`TableAggregateBucket`, `MAX_AGGREGATE_BUCKETS` and a default-unsupported `Source::aggregate_rows`. SQLite, DuckDB and Turso implement it; the server forwards it to remote sources.

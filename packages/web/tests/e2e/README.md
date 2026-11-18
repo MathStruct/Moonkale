@@ -843,3 +843,9 @@ directory when CARGO_TARGET_DIR is unset. `plot-million.json` records elapsed
 plot-to-paint time, DOM marks, partial status, Wasm memory and browser heap before
 and after collection; the loaded-page histogram must finish within ten seconds,
 draw at most 40 bins, remain below 128 MiB Wasm memory and issue no source query.
+
+`plot-live.mjs` (`run-all.sh plot-live`, PLT-09) writes `runs/demo/metrics.csv` and
+`runs/demo/run.sqlite` (with the `sqlite3` CLI) into the fixture, plots them, then
+appends rows and inserts rows from outside: the data-folder table and its plot grow
+without a click, a zoomed plot keeps its zoom, the pushed-down SQLite grid reloads in
+place and its source-aggregated histogram follows without turning partial.

@@ -374,6 +374,15 @@ impl Source for SqliteSource {
         ))
     }
 
+    /// Changes on disk (PLT-09): the file and its journals, see `crate::stamp`.
+    async fn changes_since(
+        &self,
+        since: u64,
+    ) -> Result<Option<moonkale_core::Changes>, SourceError> {
+        let files = crate::stamp::with_suffixes(&self.path, &["-wal", "-journal"]);
+        Ok(Some(crate::stamp::changes(&files, since)))
+    }
+
     async fn read_rows(
         &self,
         table: String,

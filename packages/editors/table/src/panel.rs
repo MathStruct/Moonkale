@@ -53,6 +53,16 @@ fn dialect_name(d: Option<TextDialect>) -> &'static str {
     d.map(TextDialect::name).unwrap_or("sql")
 }
 
+/// How often `source` has changed outside Moonkale since it was opened.
+fn data_epoch(ws: Workspace, source: &moonkale_core::SourceId) -> u64 {
+    ws.sources
+        .data_epochs
+        .peek()
+        .get(source)
+        .copied()
+        .unwrap_or(0)
+}
+
 #[component]
 pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let source_id = node.source.clone();
@@ -100,12 +110,25 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
     let mut row_context = use_signal(|| None::<RowsContext>);
     let mut row_refusal = use_signal(String::new);
 
+    // PLT-09: the source's data epoch when the current query was sent. A
+    // change that arrives while it runs is newer, so it is not lost: this
+    // panel re-runs, or the grid (which starts from this epoch) reloads.
+    let mut seen_epoch = use_signal({
+        let source_id = source_id.clone();
+        move || data_epoch(ws, &source_id)
+    });
+    let loaded_epoch = use_signal(|| *seen_epoch.peek());
     let run = {
         let source_id = source_id.clone();
         let owner = node.id;
         let node = node.clone();
         move || {
             let source_id = source_id.clone();
+            let sent_at = data_epoch(ws, &source_id);
+            // Copies of the handles: `run` stays `Fn`.
+            let (mut seen, mut loaded) = (seen_epoch, loaded_epoch);
+            seen.set(sent_at);
+            loaded.set(sent_at);
             let text = text.peek().clone();
             let dialect = dialect.peek().to_string();
             let node = node.clone();
@@ -226,6 +249,33 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
             }
         }
     });
+    // PLT-09: the source changed outside Moonkale (a run appending to its
+    // CSV): run the query again. A pushed-down grid reloads its own pages in
+    // place instead (`ResultGrid`), keeping its filters.
+    moonkale_ext_api::crash::use_effect({
+        let run = run.clone();
+        let source_id = source_id.clone();
+        move || {
+            let epoch = ws
+                .sources
+                .data_epochs
+                .read()
+                .get(&source_id)
+                .copied()
+                .unwrap_or(0);
+            if agent_result || epoch == *seen_epoch.peek() || running() {
+                return;
+            }
+            seen_epoch.set(epoch);
+            let grid_reloads = row_context.peek().as_ref().is_some_and(|c| {
+                c.handle.descriptor().capabilities.table_query
+                    == moonkale_core::TableCapabilities::SQL
+            });
+            if !grid_reloads {
+                run();
+            }
+        }
+    });
     // First load.
     use_hook({
         let run = run.clone();
@@ -328,7 +378,7 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                     Some(Err(e)) => rsx! { p { class: "mk-table-msg mk-table-error", "{e}" } },
                     Some(Ok(r)) => rsx! {
                         for generation in [runs()] {
-                            ResultGrid { key: "{generation}", ws, owner: node.id, result: SharedResult(r.clone()), context: row_context(), onreload: { let run=run.clone(); move |_| run() } }
+                            ResultGrid { key: "{generation}", ws, owner: node.id, result: SharedResult(r.clone()), context: row_context(), loaded_epoch: loaded_epoch(), onreload: { let run=run.clone(); move |_| run() } }
                         }
                     },
                 }
@@ -380,6 +430,7 @@ fn ResultGrid(
     owner: moonkale_core::NodeId,
     result: SharedResult,
     context: Option<RowsContext>,
+    loaded_epoch: u64,
     onreload: EventHandler<()>,
 ) -> Element {
     let page = use_signal(|| context.as_ref().map(|c| c.page.clone()).unwrap_or_default());
@@ -432,6 +483,44 @@ fn ResultGrid(
                 }
             }
         }
+    });
+    // PLT-09: the source changed outside Moonkale: reload the first page with
+    // the current filters, in place. Not while a page load or an edit is
+    // under way (the effect runs again when they end), and not over edits the
+    // user can still undo or pinned rows, which a reload would drop: then
+    // Refresh is the user's. (Moonkale's own saves change the file as well,
+    // so a notice here would mostly announce the user's own edit.)
+    let live_source = context
+        .as_ref()
+        .filter(|_| pushed)
+        .map(|c| c.source.clone());
+    // From the epoch the rows were read at, not the one at mount: a change
+    // during the first read reloads at once.
+    let mut seen_epoch = use_signal(|| loaded_epoch);
+    moonkale_ext_api::crash::use_effect(move || {
+        let Some(source) = live_source.as_ref() else {
+            return;
+        };
+        let epoch = ws
+            .sources
+            .data_epochs
+            .read()
+            .get(source)
+            .copied()
+            .unwrap_or(0);
+        if epoch == *seen_epoch.peek()
+            || *browse.busy.read()
+            || *editing.busy.read()
+            || editing.active.read().is_some()
+        {
+            return;
+        }
+        if !editing.undo.read().is_empty() || !editing.pinned.read().is_empty() {
+            return;
+        }
+        seen_epoch.set(epoch);
+        let query = browse.query.peek().clone();
+        browse.reset(query);
     });
     let live_table = use_memo({
         let authoritative = context.is_some();

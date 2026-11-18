@@ -143,6 +143,44 @@ impl Source for Db {
     }
 }
 
+/// A file-backed database (PLT-09): answers at once with a fingerprint of
+/// its files, here the value of `LIVE_STAMP` (thread-local: each test runs
+/// on its own thread). Counts the calls.
+struct LiveDb(SourceDescriptor);
+
+thread_local! {
+    static LIVE_STAMP: std::cell::Cell<u64> = const { std::cell::Cell::new(7) };
+    static LIVE_CALLS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+#[moonkale_core::async_trait]
+impl Source for LiveDb {
+    fn id(&self) -> SourceId {
+        self.0.id.clone()
+    }
+    fn descriptor(&self) -> SourceDescriptor {
+        self.0.clone()
+    }
+    async fn query(&self, _: Query) -> Result<QueryResult, SourceError> {
+        Ok(QueryResult::default())
+    }
+    async fn fetch_text(&self, _: NodeId) -> Result<(String, Version), SourceError> {
+        Err(SourceError::NotFound)
+    }
+    async fn apply(&self, _: Transaction) -> Result<Applied, SourceError> {
+        Err(SourceError::Unsupported("db".into()))
+    }
+    async fn changes_since(&self, since: u64) -> Result<Option<Changes>, SourceError> {
+        LIVE_CALLS.with(|c| c.set(c.get() + 1));
+        let seq = LIVE_STAMP.with(|s| s.get());
+        Ok(Some(Changes {
+            seq,
+            paths: vec![],
+            reset: since != 0 && since != seq,
+        }))
+    }
+}
+
 fn open_folder(_: String, _: OpenOptions) -> OpenFolderFuture {
     Box::pin(async { Err(SourceError::NotFound) })
 }
@@ -205,6 +243,10 @@ fn App() -> Element {
             "sqlite:/data.db",
             SourceFamily::Sql,
         ))));
+        ws.add_source(Arc::new(LiveDb(descriptor(
+            "duckdb:/runs/demo/",
+            SourceFamily::Sql,
+        ))));
         ws.follow_sources();
         SETUP.with(|s| *s.borrow_mut() = Some((ws, disk, refreshed, tx)));
     });
@@ -263,6 +305,10 @@ async fn changes_on_disk_reach_the_index_and_the_explorer() {
     assert!(
         *ws.sources.graph_epoch.peek() > graph_epoch,
         "the graph reloads"
+    );
+    assert!(
+        !ws.sources.data_epochs.peek().contains_key(&folder),
+        "only SQL sources get a data epoch: tables over a folder or store do not re-run"
     );
 
     // A burst: refresh from the root.
@@ -370,4 +416,50 @@ async fn open_documents_without_edits_follow_the_source() {
     settle(&mut dom).await;
     assert_eq!(text(a.id), "TWO");
     assert_eq!(text(b.id), "mine");
+}
+
+/// PLT-09: a file-backed database that changed bumps its data epoch, once
+/// per change, and is asked about once a second; it neither refreshes the
+/// index nor reloads the Explorer (a growing CSV would do so every second).
+#[tokio::test(flavor = "current_thread")]
+async fn a_changed_database_bumps_its_data_epoch_only() {
+    let mut dom = VirtualDom::new(App);
+    dom.rebuild_in_place();
+    settle(&mut dom).await;
+    let (ws, _, refreshed, _) = SETUP.with(|s| s.borrow_mut().take()).unwrap();
+    let live = SourceId::new("duckdb:/runs/demo/");
+    assert!(
+        ws.sources.watched.peek().contains(&live),
+        "it answered: watched"
+    );
+    let epoch = || {
+        ws.sources
+            .data_epochs
+            .peek()
+            .get(&live)
+            .copied()
+            .unwrap_or(0)
+    };
+    assert_eq!(epoch(), 0, "the first answer is the baseline");
+
+    refreshed.lock().unwrap().clear();
+    let (fs, graph) = (*ws.sources.fs_epoch.peek(), *ws.sources.graph_epoch.peek());
+    LIVE_STAMP.with(|s| s.set(8));
+    let calls = LIVE_CALLS.with(|c| c.get());
+    // 1.5 s: at most two more calls at the one-second pace.
+    for _ in 0..4 {
+        settle(&mut dom).await;
+    }
+    assert_eq!(epoch(), 1, "one change, one bump");
+    let more = LIVE_CALLS.with(|c| c.get()) - calls;
+    assert!((1..=2).contains(&more), "paced: {more} calls in 1.6 s");
+    assert!(refreshed.lock().unwrap().is_empty(), "no index refresh");
+    assert_eq!(*ws.sources.fs_epoch.peek(), fs);
+    assert_eq!(*ws.sources.graph_epoch.peek(), graph);
+
+    // Unchanged files: no further bumps.
+    for _ in 0..3 {
+        settle(&mut dom).await;
+    }
+    assert_eq!(epoch(), 1);
 }

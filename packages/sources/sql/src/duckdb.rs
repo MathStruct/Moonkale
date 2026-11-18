@@ -590,6 +590,20 @@ impl Source for DuckDbSource {
         ))
     }
 
+    /// Changes on disk (PLT-09): a data folder's files, or the database
+    /// file and its `.wal`, see `crate::stamp`.
+    async fn changes_since(
+        &self,
+        since: u64,
+    ) -> Result<Option<moonkale_core::Changes>, SourceError> {
+        let files = if self.files.is_empty() {
+            crate::stamp::with_suffixes(&self.path, &[".wal"])
+        } else {
+            self.files.clone()
+        };
+        Ok(Some(crate::stamp::changes(&files, since)))
+    }
+
     async fn read_rows(
         &self,
         table: String,
