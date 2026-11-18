@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+    <channel>
+      <title>Moonkale</title>
+      <link>https://mathstruct.org/Moonkale</link>
+      <description>Last 10 notes on Moonkale</description>
+      <generator>Quartz -- quartz.jzhao.xyz</generator>
+      <item>
+    <title>Platform Matrix</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Platform-Matrix</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Platform-Matrix</guid>
+    <description><![CDATA[ The brief: all targets are served; the apps need not be identical; single-platform features are separated. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:24:06 GMT</pubDate>
+  </item><item>
+    <title>Status</title>
+    <link>https://mathstruct.org/Moonkale/Status</link>
+    <guid>https://mathstruct.org/Moonkale/Status</guid>
+    <description><![CDATA[ What Moonkale can do today, area by area — built, partly built, designed only — checked against the code on 2026-10-01 (after Milestone 17), with the open problems that matter most. The one place where status is kept. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:23:50 GMT</pubDate>
+  </item><item>
+    <title>Security — the trust model and the security document</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Security</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Security</guid>
+    <description><![CDATA[ Who and what Moonkale trusts on each platform, and the skeleton of the project's security document. It covers secrets, connections, prompt injection, untrusted content and exploits, extensions, the supply chain and data at rest, plus the rules every change follows so security issues don't pile up. What is enforced where today, and the open findings. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:23:50 GMT</pubDate>
+  </item><item>
+    <title>P-243 — Plot step 2 review findings</title>
+    <link>https://mathstruct.org/Moonkale/problems/P-243-Plot-step-2-review-findings</link>
+    <guid>https://mathstruct.org/Moonkale/problems/P-243-Plot-step-2-review-findings</guid>
+    <description><![CDATA[ Status: resolved before merge · Related: Plotting Requirements, Security Problem agy’s WP-40 step 2 (source aggregation, .plot.json specs, SVG export) stopped at its quota while running tests (2026-11-08). ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:23:50 GMT</pubDate>
+  </item><item>
+    <title>Problem Log</title>
+    <link>https://mathstruct.org/Moonkale/problems/Problem-Log</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Problem-Log</guid>
+    <description><![CDATA[ Running log of problems hit during implementation, P-nnn, sorted by number. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:23:50 GMT</pubDate>
+  </item><item>
+    <title>Work Packages</title>
+    <link>https://mathstruct.org/Moonkale/problems/Work-Packages</link>
+    <guid>https://mathstruct.org/Moonkale/problems/Work-Packages</guid>
+    <description><![CDATA[ The open work cut into packages that several agents can carry at once without colliding — each with its files, dependencies, size and acceptance — plus the rules that keep parallel branches mergeable. Drafted 2026-10-14 for a multi-agent setup. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:23:50 GMT</pubDate>
+  </item><item>
+    <title>Plotting — requirements from Plots.jl and Makie up to Tableau</title>
+    <link>https://mathstruct.org/Moonkale/research/Plotting-Requirements</link>
+    <guid>https://mathstruct.org/Moonkale/research/Plotting-Requirements</guid>
+    <description><![CDATA[ Quick-look plotting in Moonkale. What plotting users need at three levels (a quick plot like Plots.jl, a publication or interactive figure like Makie, a dashboard like Tableau), what fits Moonkale, and a proposal for a Rust plot extension linked to tables, queries, the graph and live runs. Study of 2026-10-14; WP-40 quick-look implementation of 2026-10-30, done 2026-10-31. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 15:23:50 GMT</pubDate>
+  </item><item>
+    <title>Backlog Done 2026-10</title>
+    <link>https://mathstruct.org/Moonkale/Backlog/Backlog-Done-2026-10</link>
+    <guid>https://mathstruct.org/Moonkale/Backlog/Backlog-Done-2026-10</guid>
+    <description><![CDATA[ Work packages finished in October 2026, moved from Work Packages on 2026-11-17/18 — date, commit, the row as it stood, and how it was verified. ]]></description>
+    <pubDate>Wed, 18 Nov 2026 14:08:09 GMT</pubDate>
+  </item><item>
+    <title>Backlog</title>
+    <link>https://mathstruct.org/Moonkale/Backlog/Backlog</link>
+    <guid>https://mathstruct.org/Moonkale/Backlog/Backlog</guid>
+    <description><![CDATA[ Where the open tasks are, how a task is picked and closed, and where finished tasks go. One task per agent session; the handoff to the next session is the top section of Status. ]]></description>
+    <pubDate>Tue, 17 Nov 2026 19:40:21 GMT</pubDate>
+  </item><item>
+    <title>Indexing</title>
+    <link>https://mathstruct.org/Moonkale/architecture/Indexing</link>
+    <guid>https://mathstruct.org/Moonkale/architecture/Indexing</guid>
+    <description><![CDATA[ Crate: index. The index turns files and rows into a graph by deriving what sources don’t know: symbols, links, outlines, embeddings, stack frames. ]]></description>
+    <pubDate>Wed, 11 Nov 2026 00:13:47 GMT</pubDate>
+  </item>
+    </channel>
+  </rss>
