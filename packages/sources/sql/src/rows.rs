@@ -32,6 +32,8 @@ pub(crate) struct Schema {
     pub columns: Vec<String>,
     pub keys: Vec<String>,
     pub refusal: Option<String>,
+    pub numeric: Vec<String>,
+    pub is_duckdb: bool,
 }
 
 #[async_trait]
@@ -115,6 +117,8 @@ pub(crate) async fn sqlite_schema(db: &mut impl Db, table: &str) -> Result<Schem
         columns,
         keys,
         refusal,
+        numeric: Vec::new(),
+        is_duckdb: false,
     })
 }
 
@@ -124,8 +128,28 @@ pub(crate) async fn duck_schema(db: &mut impl Db, table: &str) -> Result<Schema>
     let Some(meta) = tables.first() else {
         return Err(SourceError::NotFound);
     };
-    let rows = db.query("SELECT column_name, column_default FROM information_schema.columns WHERE table_catalog = current_database() AND table_schema = 'main' AND table_name = ? ORDER BY ordinal_position", vec![Value::Text(table.into())]).await?;
+    let rows = db.query("SELECT column_name, column_default, data_type FROM information_schema.columns WHERE table_catalog = current_database() AND table_schema = 'main' AND table_name = ? ORDER BY ordinal_position", vec![Value::Text(table.into())]).await?;
     let columns: Vec<_> = rows.iter().map(|r| text(&r[0])).collect();
+    let numeric: Vec<_> = rows
+        .iter()
+        .filter(|r| {
+            matches!(
+                text(&r[2]).to_ascii_uppercase().as_str(),
+                "TINYINT"
+                    | "SMALLINT"
+                    | "INTEGER"
+                    | "INT"
+                    | "BIGINT"
+                    | "UTINYINT"
+                    | "USMALLINT"
+                    | "UINTEGER"
+                    | "FLOAT"
+                    | "REAL"
+                    | "DOUBLE"
+            )
+        })
+        .map(|r| text(&r[0]))
+        .collect();
     let mut refusal = (text(&meta[0]) != "BASE TABLE").then(|| "views are read-only".into());
     // Catalog functions accept the name as data; pragma_table_info reparses
     // qualified-name strings and cannot faithfully address embedded quotes.
@@ -147,6 +171,8 @@ pub(crate) async fn duck_schema(db: &mut impl Db, table: &str) -> Result<Schema>
         columns,
         keys,
         refusal,
+        numeric,
+        is_duckdb: true,
     })
 }
 
@@ -415,27 +441,30 @@ async fn apply(
     Ok(out)
 }
 
-/// Lexicographic seek, with explicit NULLS LAST in both directions. The key
-/// suffix makes duplicate user sort values stable, including composite keys.
-fn plan(schema: &Schema, query: &moonkale_core::TableQuery) -> Result<(String, Vec<Value>)> {
+fn check_scalar(v: &Value) -> Result<()> {
+    match v {
+        Value::Int(_) | Value::Bool(_) | Value::Text(_) | Value::DateTime(_) => Ok(()),
+        Value::Float(n) if n.is_finite() => Ok(()),
+        _ => Err(unsupported("table predicates require a finite scalar")),
+    }
+}
+
+fn check_column(schema: &Schema, c: &str) -> Result<String> {
+    if !schema.columns.iter().chain(&schema.keys).any(|s| s == c) {
+        return Err(err("unknown table column"));
+    }
+    Ok(quote(c))
+}
+
+fn filter_clauses(
+    schema: &Schema,
+    filters: &[moonkale_core::TableFilter],
+) -> Result<(Vec<String>, Vec<Value>)> {
     use moonkale_core::TablePredicate as P;
-    let scalar = |v: &Value| -> Result<()> {
-        match v {
-            Value::Int(_) | Value::Bool(_) | Value::Text(_) | Value::DateTime(_) => Ok(()),
-            Value::Float(n) if n.is_finite() => Ok(()),
-            _ => Err(unsupported("table predicates require a finite scalar")),
-        }
-    };
-    let column = |c: &str| -> Result<String> {
-        if !schema.columns.iter().chain(&schema.keys).any(|s| s == c) {
-            return Err(err("unknown table column"));
-        }
-        Ok(quote(c))
-    };
     let mut clauses = Vec::new();
     let mut params = Vec::new();
-    for filter in &query.filters {
-        let c = column(&filter.column)?;
+    for filter in filters {
+        let c = check_column(schema, &filter.column)?;
         clauses.push(match &filter.predicate {
             P::IsNull => format!("{c} IS NULL"),
             P::Contains(s) => {
@@ -455,16 +484,23 @@ fn plan(schema: &Schema, query: &moonkale_core::TableQuery) -> Result<(String, V
                     P::Ge(v) => (">=", v),
                     _ => unreachable!(),
                 };
-                scalar(v)?;
+                check_scalar(v)?;
                 params.push(v.clone());
                 format!("{c} {op} ?")
             }
         });
     }
+    Ok((clauses, params))
+}
+
+/// Lexicographic seek, with explicit NULLS LAST in both directions. The key
+/// suffix makes duplicate user sort values stable, including composite keys.
+fn plan(schema: &Schema, query: &moonkale_core::TableQuery) -> Result<(String, Vec<Value>)> {
+    let (mut clauses, mut params) = filter_clauses(schema, &query.filters)?;
     let mut order = Vec::new();
     let mut seek_columns = Vec::new();
     for sort in &query.sort {
-        let c = column(&sort.column)?;
+        let c = check_column(schema, &sort.column)?;
         order.push(format!(
             "{c} {} NULLS LAST",
             if sort.descending { "DESC" } else { "ASC" }
@@ -486,14 +522,14 @@ fn plan(schema: &Schema, query: &moonkale_core::TableQuery) -> Result<(String, V
             if values[i] == Value::Null {
                 continue;
             } // NULL is the final group.
-            scalar(&values[i])?;
+            check_scalar(&values[i])?;
             let mut parts = Vec::new();
             for j in 0..i {
                 let c = &seek_columns[j].0;
                 if values[j] == Value::Null {
                     parts.push(format!("{c} IS NULL"));
                 } else {
-                    scalar(&values[j])?;
+                    check_scalar(&values[j])?;
                     parts.push(format!("{c} = ?"));
                     params.push(values[j].clone());
                 }
@@ -525,4 +561,317 @@ fn plan(schema: &Schema, query: &moonkale_core::TableQuery) -> Result<(String, V
         ),
         params,
     ))
+}
+
+fn as_f64(v: &Value) -> Option<f64> {
+    match v {
+        Value::Int(n) => Some(*n as f64),
+        Value::Float(n) if n.is_finite() => Some(*n),
+        _ => None,
+    }
+}
+
+fn as_u64(v: &Value) -> u64 {
+    match v {
+        Value::Int(n) if *n >= 0 => *n as u64,
+        Value::Float(n) if *n >= 0.0 && n.is_finite() => *n as u64,
+        _ => 0,
+    }
+}
+
+fn category_order_key(v: &Value) -> String {
+    let label: String = v.to_string().chars().take(80).collect();
+    format!(
+        "{label}\0{}",
+        moonkale_core::NodeId::from_content(format!("{v:?}").as_bytes())
+    )
+}
+
+fn valid_numeric_sql(schema: &Schema, col: &str, positive: bool) -> Option<String> {
+    let q = quote(col);
+    if schema.is_duckdb {
+        if !schema.numeric.iter().any(|c| c == col) {
+            return None;
+        }
+        let pos = if positive {
+            format!(" AND CAST({q} AS DOUBLE) > 0.0")
+        } else {
+            String::new()
+        };
+        Some(format!(
+            "({q} IS NOT NULL AND isfinite(CAST({q} AS DOUBLE)) AND CAST({q} AS DOUBLE) >= -1.7976931348623157e308 AND CAST({q} AS DOUBLE) <= 1.7976931348623157e308{pos})"
+        ))
+    } else {
+        let pos = if positive {
+            format!(" AND {q} > 0.0")
+        } else {
+            String::new()
+        };
+        Some(format!(
+            "(typeof({q}) IN ('integer', 'real') AND {q} >= -1.7976931348623157e308 AND {q} <= 1.7976931348623157e308{pos})"
+        ))
+    }
+}
+
+fn where_sql(clauses: &[String]) -> String {
+    if clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", clauses.join(" AND "))
+    }
+}
+
+pub(crate) async fn aggregate(
+    db: &mut impl Db,
+    table: String,
+    agg: moonkale_core::TableAggregate,
+) -> Result<moonkale_core::TableAggregateResult> {
+    use moonkale_core::{TableAggregateBucket, TableAggregateKind, TableAggregateResult};
+    agg.validate()?;
+    if table.is_empty() || table.len() > 1024 {
+        return Err(err("invalid table name"));
+    }
+    let schema = db.schema(&table).await?;
+    if let Some(reason) = &schema.refusal {
+        return Err(unsupported(reason));
+    }
+    let xq = check_column(&schema, &agg.x)?;
+    let (filter_sql, filter_params) = filter_clauses(&schema, &agg.filters)?;
+    let t_quoted = format!("main.{}", quote(&table));
+
+    match &agg.kind {
+        TableAggregateKind::Histogram { log } => {
+            let Some(valid_x) = valid_numeric_sql(&schema, &agg.x, *log) else {
+                let rows = db
+                    .query(
+                        &format!("SELECT COUNT(*) FROM {t_quoted} {}", where_sql(&filter_sql)),
+                        filter_params,
+                    )
+                    .await?;
+                let total_rows = rows
+                    .first()
+                    .and_then(|r| r.first())
+                    .map(as_u64)
+                    .unwrap_or(0);
+                return Ok(TableAggregateResult {
+                    buckets: Vec::new(),
+                    total_rows,
+                    omitted: total_rows,
+                    lo: None,
+                    hi: None,
+                });
+            };
+            let sql1 = format!(
+                "SELECT COUNT(*), COUNT(CASE WHEN {valid_x} THEN 1 END), MIN(CASE WHEN {valid_x} THEN CAST({xq} AS DOUBLE) END), MAX(CASE WHEN {valid_x} THEN CAST({xq} AS DOUBLE) END) FROM {t_quoted} {}",
+                where_sql(&filter_sql)
+            );
+            let rows1 = db.query(&sql1, filter_params.clone()).await?;
+            let r1 = rows1.first().ok_or_else(|| err("empty aggregate row"))?;
+            let total_rows = as_u64(&r1[0]);
+            let valid_rows = as_u64(&r1[1]);
+            let (Some(raw_min), Some(raw_max)) = (as_f64(&r1[2]), as_f64(&r1[3])) else {
+                return Ok(TableAggregateResult {
+                    buckets: Vec::new(),
+                    total_rows,
+                    omitted: total_rows,
+                    lo: None,
+                    hi: None,
+                });
+            };
+            let (lo, hi) = if *log {
+                (raw_min.log10(), raw_max.log10())
+            } else {
+                (raw_min, raw_max)
+            };
+            if valid_rows == 0 || !lo.is_finite() || !hi.is_finite() {
+                return Ok(TableAggregateResult {
+                    buckets: Vec::new(),
+                    total_rows,
+                    omitted: total_rows,
+                    lo: None,
+                    hi: None,
+                });
+            }
+            let omitted = total_rows.saturating_sub(valid_rows);
+            let bins: usize = if (hi - lo).abs() < f64::EPSILON {
+                1
+            } else {
+                40
+            };
+            // `hi - lo` overflows for finite extremes (-1e308..1e308); the
+            // split form stays finite, and the bins are then computed as
+            // `x / width - lo / width` so no intermediate overflows either.
+            let wide = !(hi - lo).is_finite();
+            let width = if bins == 1 {
+                1.0
+            } else if wide {
+                hi / bins as f64 - lo / bins as f64
+            } else {
+                (hi - lo) / bins as f64
+            };
+            if bins == 1 {
+                return Ok(TableAggregateResult {
+                    buckets: vec![TableAggregateBucket {
+                        key: Value::Int(0),
+                        x_mid: lo + 0.5 * width,
+                        value: valid_rows as f64,
+                        count: valid_rows,
+                    }],
+                    total_rows,
+                    omitted,
+                    lo: Some(lo),
+                    hi: Some(hi),
+                });
+            }
+            let mut params2 = Vec::new();
+            let bin_expr = if *log {
+                let mut branches = String::from("CASE");
+                for i in 1..bins {
+                    branches.push_str(&format!(" WHEN CAST({xq} AS DOUBLE) < ? THEN {}", i - 1));
+                    params2.push(Value::Float(10f64.powf(lo + i as f64 * width)));
+                }
+                branches.push_str(&format!(" ELSE {} END", bins - 1));
+                branches
+            } else {
+                let scaled = if wide {
+                    format!("(CAST({xq} AS DOUBLE) / ? - ?)")
+                } else {
+                    format!("((CAST({xq} AS DOUBLE) - ?) / ?)")
+                };
+                let (p1, p2) = if wide {
+                    (width, lo / width)
+                } else {
+                    (lo, width)
+                };
+                let raw = if schema.is_duckdb {
+                    format!("CAST(FLOOR({scaled}) AS BIGINT)")
+                } else {
+                    format!("CAST({scaled} AS INTEGER)")
+                };
+                for _ in 0..3 {
+                    params2.extend([Value::Float(p1), Value::Float(p2)]);
+                }
+                format!(
+                    "CASE WHEN {raw} < 0 THEN 0 WHEN {raw} >= {} THEN {} ELSE {raw} END",
+                    bins,
+                    bins - 1
+                )
+            };
+            let mut clauses2 = filter_sql;
+            clauses2.push(valid_x);
+            params2.extend(filter_params);
+            let sql2 = format!(
+                // The inner query exposes only the alias, so no source column
+                // (one named `b`, say) can capture the GROUP BY.
+                "SELECT mk_bin, COUNT(*) FROM (SELECT {bin_expr} AS mk_bin FROM {t_quoted} {}) GROUP BY mk_bin ORDER BY mk_bin ASC",
+                where_sql(&clauses2)
+            );
+            let rows2 = db.query(&sql2, params2).await?;
+            let mut counts = vec![0u64; bins];
+            for r in rows2 {
+                if let Some(Value::Int(b)) = r.first() {
+                    let idx = (*b).clamp(0, (bins - 1) as i64) as usize;
+                    counts[idx] = counts[idx].saturating_add(as_u64(&r[1]));
+                }
+            }
+            let buckets = counts
+                .into_iter()
+                .enumerate()
+                .map(|(i, count)| TableAggregateBucket {
+                    key: Value::Int(i as i64),
+                    x_mid: if wide {
+                        let t = (i as f64 + 0.5) / bins as f64;
+                        lo * (1.0 - t) + hi * t
+                    } else {
+                        lo + (i as f64 + 0.5) * width
+                    },
+                    value: count as f64,
+                    count,
+                })
+                .collect();
+            Ok(TableAggregateResult {
+                buckets,
+                total_rows,
+                omitted,
+                lo: Some(lo),
+                hi: Some(hi),
+            })
+        }
+        TableAggregateKind::Bar { y } => {
+            let yq = check_column(&schema, y)?;
+            let rows_total = db
+                .query(
+                    &format!("SELECT COUNT(*) FROM {t_quoted} {}", where_sql(&filter_sql)),
+                    filter_params.clone(),
+                )
+                .await?;
+            let total_rows = rows_total
+                .first()
+                .and_then(|r| r.first())
+                .map(as_u64)
+                .unwrap_or(0);
+            let Some(valid_y) = valid_numeric_sql(&schema, y, false) else {
+                return Ok(TableAggregateResult {
+                    buckets: Vec::new(),
+                    total_rows,
+                    omitted: total_rows,
+                    lo: None,
+                    hi: None,
+                });
+            };
+            let mut clauses = filter_sql;
+            clauses.push(valid_y);
+            let mut params = filter_params;
+            params.push(Value::Int(moonkale_core::MAX_AGGREGATE_BUCKETS as i64));
+            // A sum that overflows f64 comes back NULL, so its category is
+            // dropped and counted as omitted (the row decoder refuses ±inf).
+            // First appearance in the grid's row order (the whole row key,
+            // composite keys included), then the category text. The inner
+            // query exposes only aliases, so source column names cannot clash.
+            let order = if schema.keys.is_empty() {
+                "mk_x".to_string()
+            } else {
+                schema
+                    .keys
+                    .iter()
+                    .map(|k| format!("{} ASC NULLS LAST", quote(k)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            let sql = format!(
+                "SELECT mk_x, CASE WHEN ABS(SUM(mk_y)) <= 1.7976931348623157e308 THEN SUM(mk_y) END, COUNT(*) FROM (SELECT {xq} AS mk_x, CAST({yq} AS DOUBLE) AS mk_y, ROW_NUMBER() OVER (ORDER BY {order}) AS mk_rn FROM {t_quoted} {}) GROUP BY mk_x ORDER BY MIN(mk_rn) ASC, CASE WHEN mk_x IS NULL THEN '' ELSE CAST(mk_x AS TEXT) END ASC LIMIT ?",
+                where_sql(&clauses)
+            );
+            let rows = db.query(&sql, params).await?;
+            let mut groups: Vec<(String, TableAggregateBucket)> = rows
+                .into_iter()
+                .filter_map(|r| {
+                    let sum = as_f64(r.get(1)?)?;
+                    let count = as_u64(r.get(2)?);
+                    let key_val = r.into_iter().next()?;
+                    let order = category_order_key(&key_val);
+                    Some((
+                        order,
+                        TableAggregateBucket {
+                            key: key_val,
+                            x_mid: 0.0,
+                            value: sum,
+                            count,
+                        },
+                    ))
+                })
+                .collect();
+            groups.sort_by(|a, b| a.0.cmp(&b.0));
+            groups.truncate(moonkale_core::MAX_AGGREGATE_BUCKETS);
+            let kept_rows: u64 = groups.iter().map(|(_, b)| b.count).sum();
+            let buckets = groups.into_iter().map(|(_, b)| b).collect();
+            Ok(TableAggregateResult {
+                buckets,
+                total_rows,
+                omitted: total_rows.saturating_sub(kept_rows),
+                lo: None,
+                hi: None,
+            })
+        }
+    }
 }

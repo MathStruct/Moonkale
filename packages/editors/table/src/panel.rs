@@ -143,16 +143,37 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                                             .collect(),
                                         truncated: page.truncated,
                                     };
+                                    let initial_res = Rc::new(QueryResult {
+                                        table: Some(data),
+                                        ..Default::default()
+                                    });
+                                    let is_pushed = source.descriptor().capabilities.table_query
+                                        == moonkale_core::TableCapabilities::SQL;
+                                    let mut ws_mut = ws;
+                                    ws_mut.links.results.with_mut(|all| {
+                                        all.insert(owner, initial_res.clone());
+                                    });
+                                    ws_mut.links.pushdown.with_mut(|all| {
+                                        if is_pushed {
+                                            all.insert(
+                                                owner,
+                                                moonkale_ext_api::links::TablePushdown {
+                                                    source: source_id.clone(),
+                                                    table: table.clone(),
+                                                    filters: Vec::new(),
+                                                },
+                                            );
+                                        } else {
+                                            all.remove(&owner);
+                                        }
+                                    });
                                     row_context.set(Some(RowsContext {
                                         source: source_id,
                                         handle: source.clone(),
                                         table,
                                         page: Rc::new(page),
                                     }));
-                                    result.set(Some(Ok(Rc::new(QueryResult {
-                                        table: Some(data),
-                                        ..Default::default()
-                                    }))));
+                                    result.set(Some(Ok(initial_res)));
                                     runs += 1;
                                     running.set(false);
                                     return;
@@ -165,6 +186,10 @@ pub fn TablePanel(ws: Workspace, node: Node) -> Element {
                         }
                     }
                 }
+                let mut ws_mut = ws;
+                ws_mut.links.pushdown.with_mut(|all| {
+                    all.remove(&owner);
+                });
                 let out = match ws.source(&source_id) {
                     Some(s) => s.query(Query::Text { dialect, text }).await.and_then(|r| {
                         if r.table.is_none() {
@@ -426,7 +451,31 @@ fn ResultGrid(
     });
     moonkale_ext_api::crash::use_effect({
         let result = result.clone();
+        let context = context.clone();
         move || {
+            let filters = browse.query.read().filters.clone();
+            let next_pushdown = pushed
+                .then(|| {
+                    context
+                        .as_ref()
+                        .map(|c| moonkale_ext_api::links::TablePushdown {
+                            source: c.source.clone(),
+                            table: c.table.clone(),
+                            filters,
+                        })
+                })
+                .flatten();
+            if ws.links.pushdown.peek().get(&owner) != next_pushdown.as_ref() {
+                let mut ws = ws;
+                ws.links.pushdown.with_mut(|all| match next_pushdown {
+                    Some(p) => {
+                        all.insert(owner, p);
+                    }
+                    None => {
+                        all.remove(&owner);
+                    }
+                });
+            }
             let table = live_table.read().clone();
             let latest = table
                 .map(|table| {

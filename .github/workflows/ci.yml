@@ -97,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [math_delimiters, flow_format]
+        target: [math_delimiters, flow_format, plot_spec]
     env:
       CARGO_TARGET_DIR: ${{ github.workspace }}/target/fuzz
     steps:

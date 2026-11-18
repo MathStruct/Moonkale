@@ -7334,6 +7334,11 @@ dependencies = [
  "dioxus",
  "moonkale-core",
  "moonkale-ext-api",
+ "moonkale-project-fs",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

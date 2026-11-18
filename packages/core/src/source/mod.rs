@@ -78,6 +78,16 @@ pub trait Source: MaybeSendSync {
         Err(SourceError::Unsupported("table pushdown".into()))
     }
 
+    /// Compute a bounded histogram or bar aggregate in the source (WP-40).
+    /// Sources without pushdown return `Unsupported`.
+    async fn aggregate_rows(
+        &self,
+        _table: String,
+        _agg: TableAggregate,
+    ) -> Result<TableAggregateResult, SourceError> {
+        Err(SourceError::Unsupported("table aggregation".into()))
+    }
+
     /// Check a typed row proposal without persisting it. Apply rechecks versions.
     async fn preview_rows(&self, _batch: RowBatch) -> Result<(), SourceError> {
         Err(SourceError::Unsupported("row writes".into()))

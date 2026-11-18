@@ -79,3 +79,10 @@ path = "fuzz_targets/git_everyday.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "plot_spec"
+path = "fuzz_targets/plot_spec.rs"
+test = false
+doc = false
+bench = false

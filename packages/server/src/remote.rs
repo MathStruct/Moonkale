@@ -100,6 +100,15 @@ impl Source for RemoteSource {
             .await
             .map_err(transport)?
     }
+    async fn aggregate_rows(
+        &self,
+        table: String,
+        agg: moonkale_core::TableAggregate,
+    ) -> Result<moonkale_core::TableAggregateResult, SourceError> {
+        crate::aggregate_rows_at(self.id(), table, agg)
+            .await
+            .map_err(transport)?
+    }
     async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
         crate::preview_rows_at(self.id(), batch)
             .await

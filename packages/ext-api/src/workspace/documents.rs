@@ -574,6 +574,9 @@ impl Workspace {
         self.links.results.with_mut(|results| {
             results.remove(&node);
         });
+        self.links.pushdown.with_mut(|pushdown| {
+            pushdown.remove(&node);
+        });
         let leads: Vec<_> = self
             .links
             .groups

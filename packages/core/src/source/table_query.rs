@@ -95,6 +95,92 @@ impl TableQuery {
     }
 }
 
+pub const MAX_AGGREGATE_BUCKETS: usize = 100;
+
+/// Which aggregate a [`TableAggregate`] computes in the source.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum TableAggregateKind {
+    /// Fixed-width (or `log10`) 40-bin histogram over `x`.
+    Histogram {
+        /// Bin in `log10(x)` space (values `<= 0` are omitted).
+        #[serde(default)]
+        log: bool,
+    },
+    /// Sum of numeric `y` grouped by categorical `x` (up to 100 categories).
+    Bar {
+        /// Numeric value column to sum per category.
+        y: String,
+    },
+}
+
+/// Bounded, injection-safe aggregate request pushed down to a table source.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TableAggregate {
+    /// Column for the x-axis (binned for histogram, grouped for bar).
+    pub x: String,
+    /// Aggregate kind (histogram or bar).
+    pub kind: TableAggregateKind,
+    /// Active row filters from the table grid (AND-ed before aggregation).
+    #[serde(default)]
+    pub filters: Vec<TableFilter>,
+}
+
+impl TableAggregate {
+    /// Check all bounds before any driver touches the request.
+    pub fn validate(&self) -> Result<(), SourceError> {
+        let bad_col = |c: &str| c.is_empty() || c.len() > 1024;
+        let bad_y = match &self.kind {
+            TableAggregateKind::Histogram { .. } => false,
+            TableAggregateKind::Bar { y } => bad_col(y),
+        };
+        if bad_col(&self.x)
+            || bad_y
+            || self.filters.len() > 32
+            || self.filters.iter().any(|f| bad_col(&f.column))
+            || serde_json::to_vec(self)
+                .map_err(|e| SourceError::Invalid(e.to_string()))?
+                .len()
+                > 64 * 1024
+        {
+            return Err(SourceError::Invalid(
+                "invalid or oversized table aggregate".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// One aggregated bin or category returned by [`crate::Source::aggregate_rows`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TableAggregateBucket {
+    /// Category key (`x` value) for bar charts, or `Value::Int(bin_index)` for histograms.
+    pub key: Value,
+    /// Bin midpoint (in plot x-space: `log10` when `log` is true) for histograms, or `0.0` for bar charts.
+    pub x_mid: f64,
+    /// Aggregated height: row count in the bin for histograms, or `SUM(y)` for bar charts.
+    pub value: f64,
+    /// Number of rows that contributed to this bucket.
+    pub count: u64,
+}
+
+/// Result of [`crate::Source::aggregate_rows`].
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct TableAggregateResult {
+    /// Ordered buckets (up to 40 for histograms, up to 100 for bars).
+    pub buckets: Vec<TableAggregateBucket>,
+    /// Total rows matching `filters` (before omitting non-numeric/non-positive/uncapped rows).
+    pub total_rows: u64,
+    /// Rows matching `filters` that were omitted (null/non-numeric, `<= 0` on log scale, or beyond 100 categories).
+    pub omitted: u64,
+    /// Histogram domain minimum (in `log10` space when `log` is true), if applicable.
+    #[serde(default)]
+    pub lo: Option<f64>,
+    /// Histogram domain maximum (in `log10` space when `log` is true), if applicable.
+    #[serde(default)]
+    pub hi: Option<f64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

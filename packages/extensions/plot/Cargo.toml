@@ -9,3 +9,10 @@ description = "Bounded Rust SVG quick-look plots of table results."
 dioxus = { workspace = true }
 moonkale-core = { workspace = true }
 moonkale-ext-api = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+moonkale-project-fs = { workspace = true }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

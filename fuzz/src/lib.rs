@@ -42,3 +42,18 @@ pub mod git_conflicts;
 pub mod everyday_types;
 #[path = "../../packages/extensions/git/src/everyday_model.rs"]
 pub mod git_everyday;
+
+#[allow(dead_code)]
+#[path = "../../packages/extensions/plot/src/model.rs"]
+pub mod plot_model;
+
+/// Successful plot spec parse/serialize/parse must reach a stable representation.
+pub fn plot_spec(source: &str) {
+    if let Ok(spec) = plot_model::PlotFile::parse(source) {
+        if let Ok(text) = spec.to_json() {
+            let reparsed =
+                plot_model::PlotFile::parse(&text).expect("serialized plot spec must parse");
+            assert_eq!(text, reparsed.to_json().unwrap());
+        }
+    }
+}

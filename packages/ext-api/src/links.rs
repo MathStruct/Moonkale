@@ -118,6 +118,16 @@ pub struct LinkView {
     /// Subject retained after unlinking.
     pub detached: Subject,
 }
+/// Pushdown table identity and active grid filters for a table panel (`NodeId`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TablePushdown {
+    /// Source holding the authoritative table.
+    pub source: moonkale_core::SourceId,
+    /// Table name in `main`.
+    pub table: String,
+    /// Active filters from the table grid (WP-13).
+    pub filters: Vec<moonkale_core::TableFilter>,
+}
 /// Reactive links for the current outer session.
 #[derive(Clone, Copy)]
 pub struct LinkState {
@@ -129,6 +139,8 @@ pub struct LinkState {
     pub contents: Signal<BTreeMap<String, NodeId>>,
     /// Current table-result graphs, derived and never persisted.
     pub results: Signal<BTreeMap<NodeId, std::rc::Rc<moonkale_core::QueryResult>>>,
+    /// Active pushdown table context per table node (`NodeId`), for linked plots (WP-40).
+    pub pushdown: Signal<BTreeMap<NodeId, TablePushdown>>,
     /// Focused panel, including context panels.
     pub focused: Signal<Option<String>>,
     /// Host-owned agent panel to show without taking focus or splitting a typing view.
@@ -145,6 +157,7 @@ impl LinkState {
             views: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
             contents: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
             results: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
+            pushdown: Signal::new_in_scope(BTreeMap::new(), ScopeId::ROOT),
             focused: Signal::new_in_scope(None, ScopeId::ROOT),
             display_request: Signal::new_in_scope(None, ScopeId::ROOT),
             agent_documents: Signal::new_in_scope(Default::default(), ScopeId::ROOT),

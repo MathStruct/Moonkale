@@ -813,3 +813,15 @@ hover text are bounded; selected row tokens are opaque hashes plus existing
 source-known Ref ids, never paths or URLs. Invalid/nonpositive log values are
 omitted. Plot membership reuses the session's validated LinkView/group metadata;
 result bytes and tooltip values are not persisted or included in window catalogues.
+
+WP-40 step 2 (2026-11-18): source aggregation (PLT-11) reaches SQL engines only as
+prepared statements: the table and every column are checked against the schema and
+quoted, filter values and bin edges are bound, inner queries expose only aliases,
+and results are bounded (40 bins, 100 categories). `*.plot.json` specs are content:
+the parser is bounded, refuses unknown fields and is fuzzed (`plot_spec`); a spec's
+`source.path` opens a source only when the folder's jailed lookup finds it inside
+the folder, and the panel opens exactly the normalized path that was checked, so
+a link in a cloned folder cannot point a spec at an outside database (review finding, regression test `plot/tests/spec_source.rs`). Save plot
+and Export SVG write only through the folder source (`write_text_at`), whose jail
+refuses traversal, backslashes and outside links. SVG text is escaped. No
+dependency is added (serde/serde_json were already in the workspace).

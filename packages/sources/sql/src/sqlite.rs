@@ -404,6 +404,21 @@ impl Source for SqliteSource {
         .map_err(crate::rows::err)?
     }
 
+    async fn aggregate_rows(
+        &self,
+        table: String,
+        agg: moonkale_core::TableAggregate,
+    ) -> Result<moonkale_core::TableAggregateResult, SourceError> {
+        let conn = self.conn.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut guard = conn.lock().unwrap();
+            let mut db = RowDb(&mut guard);
+            tokio::runtime::Handle::current().block_on(crate::rows::aggregate(&mut db, table, agg))
+        })
+        .await
+        .map_err(crate::rows::err)?
+    }
+
     async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
         self.row_batch(batch, true).await.map(|_| ())
     }

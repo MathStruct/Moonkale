@@ -1,13 +1,14 @@
 // WP-40: real source tables, Rust SVG, link groups, keyboard and mouse.
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { control } from './chrome-controls.mjs';
 const browser=await chromium.launch({args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
 let page,step='setup';
 const plot=()=>page.locator('.mk-plot:visible');
 const table=()=>page.locator('.mk-table:visible');
 const tabFor=async element=>'#'+await element.evaluate(el=>el.closest('[id^="wb-panel-"]').id.replace('wb-panel-','wb-tab-'));
+const aggState=async()=>(await page.waitForFunction(()=>{const el=[...document.querySelectorAll('.mk-plot')].find(p=>p.getClientRects().length);if(!el||+el.dataset.totalRows!==5000||!el.dataset.aggMs||el.dataset.partial!=='false')return null;return {mark:el.dataset.mark,points:+el.dataset.points,totalRows:+el.dataset.totalRows,partial:el.dataset.partial,path:el.dataset.plotPath};})).jsonValue();
 const action=async()=>{await control(table().locator('[data-command="plot.result"]'),'click');};
 const ready=async mark=>{await plot().waitFor();await page.waitForFunction(mark=>[...document.querySelectorAll('.mk-plot')].find(p=>p.getClientRects().length)?.dataset.mark===mark,mark);};
 const openTable=async(file,name)=>{
@@ -78,7 +79,7 @@ try {
   }
   assert.deepEqual(errors,[]);await context.close();
  }
- step='million-row DuckDB: bounded loaded-page histogram';
+ step='million-row DuckDB: full-table source-aggregated histogram';
  const context=await boot();const loadStarted=performance.now();const tableTab=await openTable('million.duckdb','million');const tableLoadMs=performance.now()-loadStarted;
  const requests=[];page.on('request',r=>{if(/\/query_rows|\/read_rows|\/query\?/.test(r.url()))requests.push(r.url());});
  const cdp=await context.newCDPSession(page);await cdp.send('HeapProfiler.collectGarbage');
@@ -87,14 +88,44 @@ try {
  await page.waitForFunction(()=>[...document.querySelectorAll('.mk-plot')].find(p=>p.getClientRects().length)?.dataset.mark==='histogram');
  await plot().locator('.mk-plot-point rect').first().waitFor();await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));
  const elapsed=performance.now()-started;
- const counts=await plot().evaluate(el=>({points:+el.dataset.points,partial:el.dataset.partial,dom:el.querySelectorAll('*').length,summary:el.querySelector('.mk-plot-summary').textContent}));
- assert(counts.points<=40);assert.equal(counts.partial,'true');assert(elapsed<10000);assert.equal(requests.length,0,'plot must not fetch the rest of a million-row table');
- await plot().locator('.mk-plot-partial').waitFor();
+ const counts=await plot().evaluate(el=>({points:+el.dataset.points,partial:el.dataset.partial,totalRows:+el.dataset.totalRows,aggMs:+el.dataset.aggMs,dom:el.querySelectorAll('*').length,summary:el.querySelector('.mk-plot-summary').textContent}));
+ assert(counts.points<=40);assert.equal(counts.partial,'false');assert.equal(counts.totalRows,1000000);assert(counts.aggMs>=0);assert(elapsed<10000);assert.equal(requests.length,0,'plot must not fetch the rest of a million-row table');
+ assert.equal(await plot().locator('.mk-plot-partial').count(),0);
  await cdp.send('HeapProfiler.collectGarbage');
  const after=await page.evaluate(()=>({heap:performance.memory?.usedJSHeapSize??null,wasm:window.__plotMemories.reduce((sum,m)=>sum+m.buffer.byteLength,0)}));
  assert(after.wasm<128*1024*1024);
  const measurements={elapsedMs:elapsed,tableLoadMs,totalMs:elapsed+tableLoadMs,before,after,counts,requests:requests.length};writeFileSync(`${process.env.M1_SHOTS}/plot-million.json`,JSON.stringify(measurements,null,2));console.log('million:',JSON.stringify(measurements));
  await page.screenshot({path:`${process.env.M1_SHOTS}/plot-million.png`});
+ step='million-row DuckDB: grid filter applies to source aggregate, export SVG and save .plot.json';
+ const millionPlotTab=await tabFor(plot());
+ await page.locator(tableTab).click();
+ const idHead=table().locator('.mk-table-hcell').filter({has:page.locator('.mk-table-hname',{hasText:/^id$/})});
+ const idMenu=idHead.locator('.mk-column-menu');
+ await idMenu.locator('summary').click();
+ await idMenu.locator('select').selectOption('ge');
+ await idMenu.locator('input').fill('995000');
+ await idMenu.locator('.mk-filter-apply').click();
+ await page.waitForFunction(()=>[...document.querySelectorAll('.mk-table-grid')].find(e=>e.checkVisibility())?.dataset.loading==='false');
+ await idMenu.locator('summary').click();
+ await page.locator(millionPlotTab).click();
+ await ready('histogram');
+ await page.waitForFunction(()=>{const p=[...document.querySelectorAll('.mk-plot')].find(p=>p.getClientRects().length);return +p?.dataset.totalRows===5000&&Boolean(p?.dataset.aggMs);});
+ assert.equal(await plot().getAttribute('data-partial'),'false');
+ await control(plot().locator('.mk-plot-export-svg'),'click');
+ await page.waitForFunction(()=>Boolean([...document.querySelectorAll('.mk-plot')].find(p=>p.getClientRects().length)?.dataset.exportedSvg));
+ const svgRel=await plot().getAttribute('data-exported-svg');
+ const svgText=readFileSync(`${process.env.M1_ROOT}/${svgRel}`,'utf8');
+ const svgParsed=await page.evaluate(xml=>{const doc=new DOMParser().parseFromString(xml,'image/svg+xml');return{err:Boolean(doc.querySelector('parsererror')),bars:doc.querySelectorAll('svg .mk-plot-bar-mark').length};},svgText);
+ assert.equal(svgParsed.err,false);assert(svgParsed.bars>0);
+ await control(plot().locator('.mk-plot-save'),'click');
+ await page.waitForFunction(()=>[...document.querySelectorAll('.mk-plot')].find(p=>p.getClientRects().length)?.dataset.plotPath==='.moonkale/plots/million.plot.json');
+ await ready('histogram');
+ const savedSpec=JSON.parse(readFileSync(`${process.env.M1_ROOT}/.moonkale/plots/million.plot.json`,'utf8'));
+ assert.equal(savedSpec.version,1);assert.equal(savedSpec.mark,'histogram');assert.equal(savedSpec.query.filters.length,1);
+ // The spec's tab first draws the held rows (partial), then the source aggregate.
+ // Read the state in the same call that sees the aggregate (the tab can
+ // briefly fall back to the held rows while it re-requests it).
+ const savedState=await aggState();
  await page.locator(tableTab).click();
  step='query results and decimation';
  await table().locator('.mk-table-sql').fill('SELECT id AS x, bucket AS y FROM million LIMIT 50000');await control(table().locator('.mk-table-query button').first(),'click');
@@ -112,6 +143,22 @@ try {
  await control(plot().locator('.mk-plot-mark'),'selectOption','histogram');
  const more=plot().locator('.mk-toolbar-more summary');await more.click();
  await plot().locator('.mk-plot-point').first().click();
+ step='reopen saved .plot.json spec identically after reload';
+ await page.locator('.wb-tab').filter({hasText:'million.plot.json'}).first().click();
+ await ready('histogram');
+ await page.reload({waitUntil:'networkidle'});
+ await page.locator('.wb-workspace').waitFor({timeout:90000});
+ if(await page.locator('.mk-explorer-open button[type=submit]').isVisible()) {
+  await page.locator('.mk-explorer-open button[type=submit]').click();
+  await page.waitForFunction(()=>document.querySelector('.wb-status-bar')?.textContent.includes('index:'));
+ }
+ if(!await plot().count()) {
+  await page.locator('.wb-tab').filter({hasText:'million.plot.json'}).first().click();
+ }
+ await ready('histogram');
+ const reopenedState=await aggState();
+ assert.equal(savedState.partial,'false');
+ assert.deepEqual(reopenedState,savedState);
  await context.close();
  console.log('PLOT E2E: PASS');
 } catch(e) {console.error(`FAIL ${step}:`,e);await page?.screenshot({path:`${process.env.M1_SHOTS}/plot-fail.png`}).catch(()=>{});process.exitCode=1;}

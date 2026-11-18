@@ -70,6 +70,18 @@ The optional default-on extension adds no rail entry or third-party dependency.
 Rust emits SVG, caps line/scatter drawing at 5000 samples, histogram bins at 40 and
 bar categories at 100, scanning at most 50,000 held rows. PLT-11 uses the permitted
 first-step fallback: client aggregation over loaded pages, clearly marked partial
-when truncated. The plot never reads the rest of a large database. Source-side
-aggregation, saved specifications, live data and publication export remain later.
+when truncated. The plot never reads the rest of a large database.
+
+**Step 2 (2026-11-18).** PLT-11 is built for SQL pushdown sources (SQLite, DuckDB,
+Turso): histograms (linear or log, 40 bins) and bars (sum per category, first 100
+categories in row order) are computed in the database as prepared statements with
+schema-checked identifiers and bound values, with the grid's WP-13 filters applied.
+The million-row DuckDB histogram covers the whole table, is not partial, and took
+349 ms in `plot.mjs` (2026-11-18, 1,000,000 rows, 40 bins). Other sources keep the client fallback. PLT-04 is built as
+a first versioned file format, `.moonkale/plots/<name>.plot.json` or a chosen path:
+source, query filters, mark, x/y encodings, scales and labels; a bounded parser
+refuses unknown fields, other versions and oversized values, and has a fuzz target.
+Opening the file shows the plot; Save plot writes one. Export SVG writes the panel's
+own SVG. Colour/size/shape/facet encodings, PDF/PNG export (they need `plotters`
+or a raster backend, a new dependency: Daniel's call) and live data remain later.
 Details: `packages/extensions/plot/plot.md`.

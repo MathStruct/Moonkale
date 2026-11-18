@@ -1,13 +1,20 @@
-//! Bounded data preparation and finite scales, independent of the UI.
-use moonkale_core::{DateTimeCell, Table, Value};
+//! Bounded data preparation, finite scales, declarative plot specs, and SVG rendering, independent of the UI.
+use moonkale_core::{
+    DateTimeCell, Table, TableAggregateResult, TableFilter, TablePredicate, Value,
+};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 pub const INPUT_CAP: usize = 50_000;
 pub const POINT_CAP: usize = 5_000;
 pub const BIN_CAP: usize = 40;
 pub const CATEGORY_CAP: usize = 100;
+pub const PLOT_SPEC_EXTENSION: &str = ".plot.json";
+pub const PLOT_SPEC_VERSION: u32 = 1;
+pub const MAX_PLOT_SPEC_BYTES: usize = 64 * 1024;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Mark {
     Line,
     Scatter,
@@ -25,8 +32,10 @@ impl Mark {
         }
     }
 }
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Scale {
+    #[default]
     Linear,
     Log,
     Time,
@@ -317,6 +326,587 @@ pub fn prepare(table: &Table, s: Spec) -> Prepared {
     }
     out
 }
+
+fn category_key(v: &Value) -> String {
+    format!(
+        "{}\0{}",
+        short(v),
+        moonkale_core::NodeId::from_content(format!("{v:?}").as_bytes())
+    )
+}
+
+/// Convert a source-computed [`TableAggregateResult`] into [`Prepared`], linking
+/// buckets to any matching rows in the currently loaded `table` page.
+pub fn prepare_aggregate(table: &Table, s: Spec, agg: &TableAggregateResult) -> Prepared {
+    let mut out = Prepared {
+        sampled: false,
+        omitted: agg.omitted as usize,
+        ..Default::default()
+    };
+    let n = table.rows.len().min(INPUT_CAP);
+    if s.mark == Mark::Bar {
+        let mut loaded_members: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, row) in table.rows.iter().take(n).enumerate() {
+            let Some((x, y)) = row.get(s.x).zip(row.get(s.y)) else {
+                continue;
+            };
+            if number(y).is_some() {
+                loaded_members.entry(category_key(x)).or_default().push(i);
+            }
+        }
+        out.bar_width = 0.8;
+        for b in &agg.buckets {
+            let key = category_key(&b.key);
+            let members = loaded_members.remove(&key).unwrap_or_default();
+            let row = members.first().copied().unwrap_or(0);
+            let count = b.count as usize;
+            let label = short(&b.key);
+            if s.ys.transform(b.value).is_some() {
+                let x = out.points.len() as f64;
+                out.categories.push(label.clone());
+                out.points.push(Point {
+                    x,
+                    y: b.value,
+                    row,
+                    members,
+                    count,
+                    label,
+                });
+            } else {
+                out.omitted = out.omitted.saturating_add(count);
+            }
+        }
+    } else if s.mark == Mark::Histogram {
+        let (Some(lo), Some(hi)) = (agg.lo, agg.hi) else {
+            return out;
+        };
+        if !(hi - lo).is_finite() || agg.buckets.is_empty() {
+            // As in the client path: an axis cannot span a range that
+            // overflows f64, so its rows are reported as omitted.
+            let counted: u64 = agg.buckets.iter().map(|b| b.count).sum();
+            out.omitted = out.omitted.saturating_add(counted as usize);
+            return out;
+        }
+        let bins = agg.buckets.len();
+        let width = if bins == 1 {
+            1.0
+        } else {
+            (hi - lo) / bins as f64
+        };
+        out.bar_width = width * 0.9;
+        let mut loaded_bins = vec![Vec::new(); bins];
+        for (i, row) in table.rows.iter().take(n).enumerate() {
+            if let Some(v) = row
+                .get(s.x)
+                .and_then(number)
+                .and_then(|v| s.xs.transform(v))
+            {
+                let b = if bins == 1 {
+                    0
+                } else {
+                    (((v - lo) / width).floor() as isize).clamp(0, (bins - 1) as isize) as usize
+                };
+                loaded_bins[b].push(i);
+            }
+        }
+        for (i, b) in agg.buckets.iter().enumerate() {
+            let count = b.count as usize;
+            let members = std::mem::take(&mut loaded_bins[i]);
+            let row = members.first().copied().unwrap_or(0);
+            if count > 0 {
+                if s.ys.transform(count as f64).is_some() {
+                    let start = lo + i as f64 * width;
+                    out.points.push(Point {
+                        x: start + width / 2.0,
+                        y: count as f64,
+                        row,
+                        members,
+                        count,
+                        label: format!("{} … {}", s.xs.label(start), s.xs.label(start + width)),
+                    });
+                } else {
+                    out.omitted = out.omitted.saturating_add(count);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Source reference inside a declarative `.plot.json` specification (PLT-04).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotSource {
+    /// Relative path to the database or data source within the workspace folder.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub path: String,
+    /// Table name in the source, if plotting a table.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub table: String,
+    /// Optional source identifier hint.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
+}
+
+/// Predicate inside a [`PlotFilter`], with unknown fields refused.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(
+    deny_unknown_fields,
+    tag = "op",
+    content = "value",
+    rename_all = "snake_case"
+)]
+pub enum PlotPredicate {
+    Eq(Value),
+    Lt(Value),
+    Le(Value),
+    Gt(Value),
+    Ge(Value),
+    Contains(String),
+    Prefix(String),
+    IsNull,
+}
+
+impl From<&TablePredicate> for PlotPredicate {
+    fn from(p: &TablePredicate) -> Self {
+        match p {
+            TablePredicate::Eq(v) => Self::Eq(v.clone()),
+            TablePredicate::Lt(v) => Self::Lt(v.clone()),
+            TablePredicate::Le(v) => Self::Le(v.clone()),
+            TablePredicate::Gt(v) => Self::Gt(v.clone()),
+            TablePredicate::Ge(v) => Self::Ge(v.clone()),
+            TablePredicate::Contains(s) => Self::Contains(s.clone()),
+            TablePredicate::Prefix(s) => Self::Prefix(s.clone()),
+            TablePredicate::IsNull => Self::IsNull,
+        }
+    }
+}
+
+impl From<&PlotPredicate> for TablePredicate {
+    fn from(p: &PlotPredicate) -> Self {
+        match p {
+            PlotPredicate::Eq(v) => Self::Eq(v.clone()),
+            PlotPredicate::Lt(v) => Self::Lt(v.clone()),
+            PlotPredicate::Le(v) => Self::Le(v.clone()),
+            PlotPredicate::Gt(v) => Self::Gt(v.clone()),
+            PlotPredicate::Ge(v) => Self::Ge(v.clone()),
+            PlotPredicate::Contains(s) => Self::Contains(s.clone()),
+            PlotPredicate::Prefix(s) => Self::Prefix(s.clone()),
+            PlotPredicate::IsNull => Self::IsNull,
+        }
+    }
+}
+
+/// Filter inside a [`PlotQuery`], with unknown fields refused.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotFilter {
+    pub column: String,
+    pub predicate: PlotPredicate,
+}
+
+impl PlotFilter {
+    pub fn from_core(filters: &[TableFilter]) -> Vec<Self> {
+        filters
+            .iter()
+            .map(|f| Self {
+                column: f.column.clone(),
+                predicate: PlotPredicate::from(&f.predicate),
+            })
+            .collect()
+    }
+
+    pub fn to_core(filters: &[Self]) -> Vec<TableFilter> {
+        filters
+            .iter()
+            .map(|f| TableFilter {
+                column: f.column.clone(),
+                predicate: TablePredicate::from(&f.predicate),
+            })
+            .collect()
+    }
+}
+
+/// Query and active row filters inside a declarative `.plot.json` specification.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotQuery {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub dialect: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub filters: Vec<PlotFilter>,
+}
+
+/// Column encodings for X and Y axes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotEncodings {
+    pub x: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub y: String,
+}
+
+/// Axis scale choices and aspect lock.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotScales {
+    #[serde(default)]
+    pub x: Scale,
+    #[serde(default)]
+    pub y: Scale,
+    #[serde(default)]
+    pub equal: bool,
+}
+
+/// Human-readable plot title and axis labels.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotLabels {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub x: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub y: String,
+}
+
+/// Versioned declarative plot specification stored as `*.plot.json` (PLT-04).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PlotFile {
+    pub version: u32,
+    #[serde(default)]
+    pub source: PlotSource,
+    #[serde(default)]
+    pub query: PlotQuery,
+    pub mark: Mark,
+    pub encodings: PlotEncodings,
+    #[serde(default)]
+    pub scales: PlotScales,
+    #[serde(default)]
+    pub labels: PlotLabels,
+}
+
+impl PlotFile {
+    /// Bounded parser for `*.plot.json`. Refuses oversized inputs, unknown fields,
+    /// unsupported versions, path traversal, and invalid column/filter bounds.
+    pub fn parse(raw: &str) -> Result<Self, String> {
+        if raw.len() > MAX_PLOT_SPEC_BYTES {
+            return Err(format!("plot spec exceeds {MAX_PLOT_SPEC_BYTES} bytes"));
+        }
+        let spec: Self = serde_json::from_str(raw).map_err(|e| e.to_string())?;
+        spec.validate()?;
+        Ok(spec)
+    }
+
+    /// Validate all structural and size bounds on this specification.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.version != PLOT_SPEC_VERSION {
+            return Err(format!(
+                "unsupported plot spec version {} (expected {})",
+                self.version, PLOT_SPEC_VERSION
+            ));
+        }
+        let check_str = |s: &str, max: usize, name: &str| -> Result<(), String> {
+            if s.len() > max || s.contains('\0') {
+                return Err(format!("invalid {name}"));
+            }
+            Ok(())
+        };
+        check_str(&self.source.path, 1024, "source.path")?;
+        check_str(&self.source.table, 256, "source.table")?;
+        check_str(&self.source.id, 1024, "source.id")?;
+        if self.source.path.split(['/', '\\']).any(|seg| seg == "..") {
+            return Err("source.path must not contain '..'".into());
+        }
+        if self.source.path.is_empty()
+            && self.source.table.is_empty()
+            && self.source.id.is_empty()
+            && self.query.text.is_empty()
+        {
+            return Err("plot spec requires a source or query".into());
+        }
+        check_str(&self.query.dialect, 64, "query.dialect")?;
+        check_str(&self.query.text, 16 * 1024, "query.text")?;
+        if self.query.filters.len() > 32 {
+            return Err("too many query filters".into());
+        }
+        for f in &self.query.filters {
+            if f.column.is_empty() {
+                return Err("empty filter column".into());
+            }
+            check_str(&f.column, 256, "filter.column")?;
+            match &f.predicate {
+                PlotPredicate::Contains(s) | PlotPredicate::Prefix(s) => {
+                    if s.is_empty() {
+                        return Err("empty filter text".into());
+                    }
+                    check_str(s, 1024, "filter.value")?;
+                }
+                PlotPredicate::Eq(v)
+                | PlotPredicate::Lt(v)
+                | PlotPredicate::Le(v)
+                | PlotPredicate::Gt(v)
+                | PlotPredicate::Ge(v) => match v {
+                    Value::Int(_) | Value::Bool(_) | Value::DateTime(_) => {}
+                    Value::Text(s) => check_str(s, 1024, "filter.value")?,
+                    Value::Float(n) if n.is_finite() => {}
+                    _ => return Err("unsupported filter scalar".into()),
+                },
+                PlotPredicate::IsNull => {}
+            }
+        }
+        if self.encodings.x.is_empty() {
+            return Err("encodings.x is required".into());
+        }
+        check_str(&self.encodings.x, 256, "encodings.x")?;
+        if self.mark != Mark::Histogram && self.encodings.y.is_empty() {
+            return Err("encodings.y is required for this mark".into());
+        }
+        check_str(&self.encodings.y, 256, "encodings.y")?;
+        check_str(&self.labels.title, 256, "labels.title")?;
+        check_str(&self.labels.x, 256, "labels.x")?;
+        check_str(&self.labels.y, 256, "labels.y")?;
+        Ok(())
+    }
+
+    /// Format as canonical pretty JSON for git-friendly storage.
+    pub fn to_json(&self) -> Result<String, String> {
+        self.validate()?;
+        let mut out = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
+        out.push('\n');
+        if out.len() > MAX_PLOT_SPEC_BYTES {
+            return Err(format!("plot spec exceeds {MAX_PLOT_SPEC_BYTES} bytes"));
+        }
+        Ok(out)
+    }
+
+    /// Resolve a [`PlotFile`] against `table`'s columns to produce a runtime [`Spec`].
+    pub fn to_spec(&self, table: &Table) -> Spec {
+        let fallback = default_spec(table);
+        let x = table
+            .columns
+            .iter()
+            .position(|c| c == &self.encodings.x)
+            .unwrap_or(fallback.x);
+        let y = if self.encodings.y.is_empty() {
+            x
+        } else {
+            table
+                .columns
+                .iter()
+                .position(|c| c == &self.encodings.y)
+                .unwrap_or(fallback.y)
+        };
+        Spec {
+            x: x.min(table.columns.len().saturating_sub(1)),
+            y: y.min(table.columns.len().saturating_sub(1)),
+            mark: self.mark,
+            xs: if self.mark == Mark::Bar {
+                Scale::Linear
+            } else {
+                self.scales.x
+            },
+            ys: self.scales.y,
+            equal: self.scales.equal,
+        }
+    }
+}
+
+fn xml_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// Render a standalone SVG string from our own plot layout and renderer (no external dependencies).
+pub fn render_svg(
+    table: &Table,
+    s: Spec,
+    prep: &Prepared,
+    labels: &PlotLabels,
+    default_y_label: &str,
+) -> String {
+    let (w, h, l, r, t, b) = (640.0_f64, 360.0_f64, 64.0_f64, 22.0_f64, 18.0_f64, 44.0_f64);
+    let (mut pw, mut ph) = (w - l - r, h - t - b);
+    if s.equal {
+        let side = pw.min(ph);
+        pw = side;
+        ph = side;
+    }
+    let tx = |v: f64| {
+        if s.mark == Mark::Bar || s.mark == Mark::Histogram {
+            Some(v)
+        } else {
+            s.xs.transform(v)
+        }
+    };
+    let xa = if s.mark == Mark::Bar {
+        Axis {
+            lo: -0.6,
+            hi: (prep.points.len().max(1) as f64) - 0.4,
+        }
+    } else if s.mark == Mark::Histogram {
+        let half = prep.bar_width / 2.0;
+        Axis::from_values(prep.points.iter().flat_map(|p| [p.x - half, p.x + half]))
+    } else {
+        Axis::from_values(prep.points.iter().filter_map(|p| tx(p.x)))
+    };
+    let ya = Axis::from_values(
+        prep.points
+            .iter()
+            .filter_map(|p| s.ys.transform(p.y))
+            .chain(
+                (s.mark == Mark::Bar || s.mark == Mark::Histogram)
+                    .then(|| s.ys.transform(0.0))
+                    .flatten(),
+            ),
+    );
+    let map_x = |v: f64| l + xa.unit(v) * pw;
+    let map_y = |v: f64| t + (1.0 - ya.unit(v)) * ph;
+    let zero_y = map_y(s.ys.transform(0.0).unwrap_or(ya.lo)).clamp(t, t + ph);
+    let xticks = if s.mark == Mark::Bar {
+        let step = (prep.categories.len() / 6).max(1);
+        prep.categories
+            .iter()
+            .enumerate()
+            .step_by(step)
+            .map(|(i, c)| (map_x(i as f64), c.clone()))
+            .collect::<Vec<_>>()
+    } else {
+        xa.ticks(pw, 84.0)
+            .into_iter()
+            .map(|v| (map_x(v), s.xs.label(v)))
+            .collect()
+    };
+    let yticks: Vec<_> = ya
+        .ticks(ph, 42.0)
+        .into_iter()
+        .map(|v| (map_y(v), s.ys.label(v)))
+        .collect();
+    let xlabel = if !labels.x.is_empty() {
+        labels.x.clone()
+    } else {
+        table.columns.get(s.x).cloned().unwrap_or_default()
+    };
+    let ylabel = if !labels.y.is_empty() {
+        labels.y.clone()
+    } else if s.mark == Mark::Histogram {
+        default_y_label.to_string()
+    } else {
+        table.columns.get(s.y).cloned().unwrap_or_default()
+    };
+    let line_pts = if s.mark == Mark::Line {
+        prep.points
+            .iter()
+            .filter_map(|p| {
+                Some(format!(
+                    "{:.2},{:.2}",
+                    map_x(tx(p.x)?),
+                    map_y(s.ys.transform(p.y)?)
+                ))
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    } else {
+        String::new()
+    };
+
+    let mut svg = String::with_capacity(4096);
+    svg.push_str(&format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"mk-plot-svg\" viewBox=\"0 0 {w} {h}\" width=\"{w}\" height=\"{h}\" data-mark=\"{}\" data-points=\"{}\">\n",
+        s.mark.id(),
+        prep.points.len()
+    ));
+    if !labels.title.is_empty() {
+        svg.push_str(&format!("  <title>{}</title>\n", xml_escape(&labels.title)));
+    }
+    svg.push_str(&format!(
+        "  <rect class=\"mk-plot-frame\" x=\"{l}\" y=\"{t}\" width=\"{pw}\" height=\"{ph}\" fill=\"none\" stroke=\"currentColor\" stroke-opacity=\"0.25\"/>\n"
+    ));
+    for (x, label) in &xticks {
+        if *x >= l && *x <= l + pw {
+            svg.push_str(&format!(
+                "  <line class=\"mk-plot-grid\" x1=\"{x:.2}\" y1=\"{t}\" x2=\"{x:.2}\" y2=\"{}\" stroke=\"currentColor\" stroke-opacity=\"0.12\"/>\n",
+                t + ph
+            ));
+            svg.push_str(&format!(
+                "  <text class=\"mk-plot-tick\" x=\"{x:.2}\" y=\"{}\" text-anchor=\"middle\">{}</text>\n",
+                t + ph + 16.0,
+                xml_escape(label)
+            ));
+        }
+    }
+    for (y, label) in &yticks {
+        if *y >= t && *y <= t + ph {
+            svg.push_str(&format!(
+                "  <line class=\"mk-plot-grid\" x1=\"{l}\" y1=\"{y:.2}\" x2=\"{}\" y2=\"{y:.2}\" stroke=\"currentColor\" stroke-opacity=\"0.12\"/>\n",
+                l + pw
+            ));
+            svg.push_str(&format!(
+                "  <text class=\"mk-plot-tick\" x=\"{}\" y=\"{:.2}\" text-anchor=\"end\">{}</text>\n",
+                l - 6.0,
+                y + 4.0,
+                xml_escape(label)
+            ));
+        }
+    }
+    if s.mark == Mark::Line && !line_pts.is_empty() {
+        svg.push_str(&format!(
+            "  <polyline class=\"mk-plot-line\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" points=\"{line_pts}\"/>\n"
+        ));
+    }
+    for p in &prep.points {
+        let (Some(xv), Some(yv)) = (tx(p.x), s.ys.transform(p.y)) else {
+            continue;
+        };
+        let (px, py) = (map_x(xv), map_y(yv));
+        if !px.is_finite() || !py.is_finite() {
+            continue;
+        }
+        if s.mark == Mark::Bar || s.mark == Mark::Histogram {
+            let bw = ((map_x(xv + prep.bar_width / 2.0) - map_x(xv - prep.bar_width / 2.0)).abs())
+                .max(2.0);
+            let top = py.min(zero_y);
+            let bh = (py - zero_y).abs().max(1.5);
+            let bx = px - bw / 2.0;
+            svg.push_str(&format!(
+                "  <rect class=\"mk-plot-bar-mark\" data-row=\"{}\" x=\"{bx:.2}\" y=\"{top:.2}\" width=\"{bw:.2}\" height=\"{bh:.2}\"/>\n",
+                p.row
+            ));
+        } else {
+            svg.push_str(&format!(
+                "  <circle class=\"mk-plot-dot\" data-row=\"{}\" cx=\"{px:.2}\" cy=\"{py:.2}\" r=\"3.5\"/>\n",
+                p.row
+            ));
+        }
+    }
+    svg.push_str(&format!(
+        "  <text class=\"mk-plot-axis-label\" x=\"{:.2}\" y=\"{}\" text-anchor=\"middle\">{}</text>\n",
+        l + pw / 2.0,
+        h - 6.0,
+        xml_escape(&xlabel)
+    ));
+    svg.push_str(&format!(
+        "  <text class=\"mk-plot-axis-label\" x=\"14\" y=\"{:.2}\" text-anchor=\"middle\" transform=\"rotate(-90 14 {:.2})\">{}</text>\n",
+        t + ph / 2.0,
+        t + ph / 2.0,
+        xml_escape(&ylabel)
+    ));
+    svg.push_str("</svg>\n");
+    svg
+}
 #[derive(Clone, Copy, Debug)]
 pub struct Axis {
     pub lo: f64,
@@ -489,5 +1079,140 @@ mod tests {
         let a = Axis::from_values([f64::MAX].into_iter()).viewport(10.0, 0.25);
         assert!(a.lo.is_finite() && a.hi.is_finite());
         assert!(a.ticks(800.0, 100.0).iter().all(|v| v.is_finite()));
+    }
+    #[test]
+    fn plot_spec_round_trip_and_refusals() {
+        let spec = PlotFile {
+            version: PLOT_SPEC_VERSION,
+            source: PlotSource {
+                path: "data.sqlite".into(),
+                table: "points".into(),
+                id: String::new(),
+            },
+            query: PlotQuery {
+                dialect: "sql".into(),
+                text: "SELECT * FROM \"points\" LIMIT 1000".into(),
+                filters: PlotFilter::from_core(&[TableFilter {
+                    column: "group".into(),
+                    predicate: TablePredicate::Contains("alpha".into()),
+                }]),
+            },
+            mark: Mark::Scatter,
+            encodings: PlotEncodings {
+                x: "x".into(),
+                y: "y".into(),
+            },
+            scales: PlotScales {
+                x: Scale::Linear,
+                y: Scale::Log,
+                equal: true,
+            },
+            labels: PlotLabels {
+                title: "Points <1> & \"2\"".into(),
+                x: "X axis".into(),
+                y: "Y axis".into(),
+            },
+        };
+        let json = spec.to_json().unwrap();
+        let parsed = PlotFile::parse(&json).unwrap();
+        assert_eq!(parsed, spec);
+        assert_eq!(
+            PlotFilter::to_core(&parsed.query.filters),
+            vec![TableFilter {
+                column: "group".into(),
+                predicate: TablePredicate::Contains("alpha".into()),
+            }]
+        );
+
+        let t = Table {
+            columns: vec!["x".into(), "y".into(), "group".into()],
+            rows: vec![
+                vec![
+                    Value::Float(1.0),
+                    Value::Float(10.0),
+                    Value::Text("alpha".into()),
+                ],
+                vec![
+                    Value::Float(2.0),
+                    Value::Float(100.0),
+                    Value::Text("beta".into()),
+                ],
+            ],
+            truncated: false,
+        };
+        let runtime = parsed.to_spec(&t);
+        assert_eq!(runtime.mark, Mark::Scatter);
+        assert_eq!(runtime.x, 0);
+        assert_eq!(runtime.y, 1);
+        assert_eq!(runtime.ys, Scale::Log);
+        assert!(runtime.equal);
+        let prep = prepare(&t, runtime);
+        let svg = render_svg(&t, runtime, &prep, &parsed.labels, "count");
+        assert!(svg.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg"));
+        assert!(svg.contains("<title>Points &lt;1&gt; &amp; &quot;2&quot;</title>"));
+        assert!(svg.contains("data-mark=\"scatter\""));
+        assert!(svg.ends_with("</svg>\n"));
+
+        // Refusals: unknown fields, wrong version, path traversal, missing encodings, oversized input, NUL bytes.
+        for bad in [
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y"},"unknown":1}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite","extra":true},"mark":"scatter","encodings":{"x":"x","y":"y"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"query":{"bad":1},"mark":"scatter","encodings":{"x":"x","y":"y"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y","z":"z"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y"},"scales":{"bad":true}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y"},"labels":{"bad":"x"}}"#.to_string(),
+            r#"{"version":2,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y"}}"#.to_string(),
+            r#"{"version":0,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"../secret.sqlite"},"mark":"scatter","encodings":{"x":"x","y":"y"}}"#.to_string(),
+            r#"{"version":1,"source":{},"mark":"scatter","encodings":{"x":"x","y":"y"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"","y":"y"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"scatter","encodings":{"x":"x"}}"#.to_string(),
+            r#"{"version":1,"source":{"path":"data.sqlite"},"mark":"histogram","encodings":{"x":"x\u0000"}}"#.to_string(),
+            " ".repeat(MAX_PLOT_SPEC_BYTES + 1),
+        ] {
+            assert!(PlotFile::parse(&bad).is_err(), "expected refusal for {bad}");
+        }
+    }
+    #[test]
+    fn prepare_aggregate_matches_in_memory_prepare() {
+        use moonkale_core::TableAggregateBucket;
+        let t = Table {
+            columns: vec!["cat".into(), "val".into()],
+            rows: vec![
+                vec![Value::Text("a".into()), Value::Int(2)],
+                vec![Value::Text("b".into()), Value::Int(5)],
+                vec![Value::Text("a".into()), Value::Int(3)],
+            ],
+            truncated: false,
+        };
+        let bar_spec = Spec {
+            x: 0,
+            y: 1,
+            mark: Mark::Bar,
+            xs: Scale::Linear,
+            ys: Scale::Linear,
+            equal: false,
+        };
+        let agg = TableAggregateResult {
+            buckets: vec![
+                TableAggregateBucket {
+                    key: Value::Text("a".into()),
+                    x_mid: 0.0,
+                    value: 5.0,
+                    count: 2,
+                },
+                TableAggregateBucket {
+                    key: Value::Text("b".into()),
+                    x_mid: 0.0,
+                    value: 5.0,
+                    count: 1,
+                },
+            ],
+            total_rows: 3,
+            omitted: 0,
+            lo: None,
+            hi: None,
+        };
+        assert_eq!(prepare_aggregate(&t, bar_spec, &agg), prepare(&t, bar_spec));
     }
 }

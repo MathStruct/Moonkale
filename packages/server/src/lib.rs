@@ -432,6 +432,19 @@ pub async fn query_rows_at(
     Ok(s.query_rows(table, query).await)
 }
 
+/// Typed prepared table aggregation; the source validates schema and bounds.
+#[post("/api/sources/aggregate_rows")]
+pub async fn aggregate_rows_at(
+    source: SourceId,
+    table: String,
+    agg: moonkale_core::TableAggregate,
+) -> Result<Result<moonkale_core::TableAggregateResult, SourceError>, ServerFnError> {
+    let s = state::registry()
+        .get(&source)
+        .ok_or_else(|| server_error("unknown source"))?;
+    Ok(s.aggregate_rows(table, agg).await)
+}
+
 #[post("/api/sources/preview_rows")]
 pub async fn preview_rows_at(
     source: SourceId,

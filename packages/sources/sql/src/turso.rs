@@ -377,6 +377,13 @@ impl Source for TursoSource {
     ) -> Result<moonkale_core::RowPage, SourceError> {
         crate::rows::query(&mut RowDb(self.db.connect().map_err(err)?), table, query).await
     }
+    async fn aggregate_rows(
+        &self,
+        table: String,
+        agg: moonkale_core::TableAggregate,
+    ) -> Result<moonkale_core::TableAggregateResult, SourceError> {
+        crate::rows::aggregate(&mut RowDb(self.db.connect().map_err(err)?), table, agg).await
+    }
     async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
         crate::rows::batch(&mut RowDb(self.db.connect().map_err(err)?), batch, true)
             .await

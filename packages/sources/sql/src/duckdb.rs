@@ -629,6 +629,30 @@ impl Source for DuckDbSource {
         .map_err(crate::rows::err)?
     }
 
+    async fn aggregate_rows(
+        &self,
+        table: String,
+        agg: moonkale_core::TableAggregate,
+    ) -> Result<moonkale_core::TableAggregateResult, SourceError> {
+        let conn = self.conn.clone();
+        let path = self.path.clone();
+        let writable = self.writable;
+        tokio::task::spawn_blocking(move || {
+            let mut guard = conn.lock().unwrap();
+            let mut file;
+            let c = if let Some(c) = guard.as_mut() {
+                c
+            } else {
+                file = Self::file_connection(&path, writable).map_err(crate::rows::err)?;
+                &mut file
+            };
+            let mut db = RowDb(c);
+            tokio::runtime::Handle::current().block_on(crate::rows::aggregate(&mut db, table, agg))
+        })
+        .await
+        .map_err(crate::rows::err)?
+    }
+
     async fn preview_rows(&self, batch: moonkale_core::RowBatch) -> Result<(), SourceError> {
         self.row_batch(batch, true).await.map(|_| ())
     }

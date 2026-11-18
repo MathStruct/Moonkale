@@ -7,18 +7,26 @@ tags: [status, moc]
 
 ## Next session
 
-*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-17.** The backlog convention starts today: finished packages move from [[Work Packages]] to `markdown/Backlog/Backlog Done <yyyy-mm>.md`. **Next task:** move the packages that are already done (✅ on this page, e.g. WP-40) out of Work Packages into `Backlog Done 2026-11.md` (and earlier months where the date is known), then name the next open package here.
+*Overwritten at the end of every task (see [[Backlog]]).* **2026-11-18.** Finished: CI green again (9e567d85: clippy 1.100 `needless_bool`; quinn-proto, quinn-udp, libz-sys, rustix patch bumps; dated exceptions for unmaintained chrono and humantime, replacement is Daniel's call); the October packages moved to `Backlog/Backlog Done 2026-10.md`; WP-40 step 2 (source aggregation, `.plot.json` specs, SVG export; agy's work, finished after a Codex review: four findings fixed with regression tests, one more from Mistral's probes). **Next task:** WP-40's live plots (PLT-09, the Lenticulum driver): read [[Plotting Requirements]], `packages/extensions/plot/plot.md` and [[Julia and Lenticulum]]; write the design into the WP-40 row before coding. Open for Daniel: PDF/PNG plot export needs `plotters` or a raster backend (a new dependency). Locally, Rust 1.100.0 is installed beside stable (CI's stable is 1.100; local stable is 1.98, whose clippy misses new lints).
 
 Legend: ✅ built and tested · ◐ partly built (the missing part is named) · 📝 designed only, no code · ⚠ built but broken
 
-## Plot quick look (WP-40, 2026-10-30)
+## Plot quick look (WP-40, 2026-10-30; step 2 2026-11-18)
 
 ✅ Done 2026-10-31. Optional default-on Plot adds a linked SVG
 panel from any held table result, with automatic line/scatter/bar/histogram,
 column/mark controls, linear/log/time axes, equal aspect, zoom/pan, hover and
 keyboard row selection. SQL page bounds are retained and incomplete results are
-marked partial. Database aggregation, publication export, live data and saved
-chart specifications remain later. See [[Plotting Requirements]].
+marked partial.
+
+✅ Step 2, 2026-11-18. Histograms and bars over SQLite, DuckDB and Turso aggregate
+in the database (PLT-11) with the grid's filters: the million-row DuckDB histogram
+covers the whole table in 349 ms, not partial. Plots save as versioned
+`.plot.json` specs (PLT-04; bounded, fuzzed parser) that reopen after reload, and
+export as SVG. Tests: the aggregate against a brute-force reference on all three
+engines (including the review regressions), spec round-trips/refusals, spec source
+confinement, 60 s of fuzzing, and `plot.mjs`. Live data (PLT-09) and PDF/PNG
+export remain later. See [[Plotting Requirements]].
 
 ## Proposals and optimistic text writes (WP-49 first slice, 2026-10-30)
 

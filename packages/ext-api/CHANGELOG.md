@@ -1,5 +1,10 @@
 # Changelog — the library crates
 
+## Unreleased — source aggregation and plot specs (WP-40 step 2, 2026-11-18)
+
+- Core adds bounded `TableAggregate` (histogram or bar, grid filters), `TableAggregateResult`/`TableAggregateBucket`, `MAX_AGGREGATE_BUCKETS` and a default-unsupported `Source::aggregate_rows`. SQLite, DuckDB and Turso implement it; the server forwards it to remote sources.
+- `LinkState::pushdown` maps a table panel to its pushdown source, table and active grid filters (`links::TablePushdown`), so linked plots can aggregate in the source. Full Rust literals of `LinkState` need the field.
+
 ## Unreleased — plot results (WP-40, 2026-10-30)
 
 - `Extension::result_commands` defaults empty and offers registered command ids in table result menus. The shell supplies `result::ResultActions`; standalone hosts can omit it.

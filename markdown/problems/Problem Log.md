@@ -323,3 +323,14 @@ At 6× CDP CPU throttling, sharing.mjs requests a second announcement before the
 receiver necessarily has the moved caret. Its fixed 120 ms sleep is replaced by
 a wait for the named remote member's changed position; all waits have step labels.
 The request-only announcement and off-wire assertions remain. Ten 6× suite runs passed; production coalescing and mount readiness were reviewed separately.
+
+## P-243 — Plot step 2 review findings (2026-11-18)
+
+**Status:** resolved before merge · [[P-243 Plot step 2 review findings]]
+
+Codex's review of agy's WP-40 step 2 found a spec `source.path` that opened an
+outside database through a link in the folder, a `GROUP BY` captured by a source
+column named `b`, composite keys choosing the wrong bar categories, and finite
+ranges overflowing `hi - lo`; Mistral's probes added bar sums overflowing f64.
+All reproduced by failing tests on SQLite, DuckDB and Turso, fixed, tests kept.
+
