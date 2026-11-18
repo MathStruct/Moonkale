@@ -199,15 +199,11 @@ fn is_use(node: Syntax, parent: Option<Syntax>, grandparent: Option<Syntax>) -> 
             None => break,
         };
     }
-    if field.kind() == "block"
+    !(field.kind() == "block"
         && field
             .parent()
             .is_some_and(|s| s.kind() == "struct_definition")
-        && (child.id() == node.id() || child.named_child(0).is_some())
-    {
-        return false;
-    }
-    true
+        && (child.id() == node.id() || child.named_child(0).is_some()))
 }
 
 /// Resolves and identifies a whole module. `dynamic` lists the module
