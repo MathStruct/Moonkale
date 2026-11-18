@@ -344,6 +344,18 @@ mount, not at the read), and data epochs bumped for stores, which re-ran their
 tables; Mistral found Turso and DuckDB files untested. All fixed; tests added
 for the second and third.
 
+## P-246 — Plates and typed spaces review findings (2026-11-19)
+
+**Status:** resolved before merge · [[P-246 Plates and typed spaces review findings]]
+
+Codex and Mistral reviewed WP-37 (ADR-0032). Both found the unit parser
+panicking on the most negative power; Codex also found scales overflowing to
+∞ and saturated exponents equating different units, `wire_refusal` missing a
+mismatch of the kinds' own types, and `_` accepted as a plate index. All
+reproduced by a failing test, fixed, tests kept. The browser suite found a
+plate hull covering non-members and the palette stacking a new block on a
+moved one; both fixed.
+
 ## P-245 — Factor subsystem review findings (2026-11-18)
 
 **Status:** resolved before merge · [[P-245 Factor subsystem review findings]]

@@ -60,3 +60,13 @@ new SVG element is required.
 ## Density and chrome (WP-63, 2026-10-28)
 
 Save is the Simple primary action; grid, generators, layout, Fit, Reload and settings are in ⋯. Detailed expands these actions. Extension chrome is a user choice; declining keeps every action in the menu.
+
+## Plates and typed spaces (WP-37, 2026-11-18)
+
+[[ADR-0032 Plates and typed spaces]] (LT-03, LT-05):
+- **Plates.** A block's card has a *plate* select: none, a plate of this scope (shown by its badge, `i = 1…n`), or a new plate (nested in the block's current one). Under it, the plate's **index** and **size** (a whole number, or empty: as many as the data). The plate is stored once (`plates` in the flow or subflow, `plate` on each member block) and drawn as a tinted hull around its members with the badge at its upper right corner (the engine's group, `badge: true`). A plate nothing is in any more goes.
+- **The plate rule.** In a factor graph, a factor must be in every plate of the variables it touches; a likelihood outside the plate of its data is refused ("y is one per i; … move the factor into the plate"), by the wire gesture and by `validate` alike.
+- **Spaces and units.** A variable's card has *space* (from a list: real, positive, unit interval, integer, count, binary, simplex(K), posdef(D), categorical(K)) and *unit* (`m/s`, `kg*m/s^2`, `km`). RxInfer's factor channels declare their spaces and unit relations (Normal's mean and draw share a unit, its variance is its square). A wire that would give a variable two disagreeing units, or spaces neither of which contains the other, is refused with the reason; `km` against `m` says "convert explicitly".
+- **Codegen.** RxInfer loops a plate's statements (`for i in eachindex(y)` or `for i in 1:N`) and indexes its variables (`z[i]`); a latent per-instance variable (the hierarchical model) is now expressible. Nested plates are refused by name; Lux and ModelingToolkit refuse plated blocks.
+- Browser suite: `rxinfer-plates.mjs`.
+

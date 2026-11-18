@@ -6,6 +6,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+mod typing;
+pub mod units;
+
+pub use typing::{plates_of, type_issues, wire_refusal};
+pub use units::Space;
+
 /// A tensor shape with unknown dimensions allowed (`None`).
 pub type Shape = Vec<Option<u64>>;
 
@@ -27,6 +33,16 @@ pub enum PortType {
         /// The name both ends must share.
         name: String,
     },
+    /// A value in a space, with an optional unit (ADR-0032 §3): a
+    /// variable's domain. Its unit may be a unit variable (`'u`,
+    /// `'u^2`), bound per block.
+    Value {
+        /// The domain (`positive`, `simplex(3)`).
+        space: Space,
+        /// The unit (`m/s`), absent when not known.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        unit: Option<String>,
+    },
 }
 
 impl PortType {
@@ -37,8 +53,73 @@ impl PortType {
         }
     }
 
+    /// A value port in `space` without a unit.
+    pub fn value(space: Space) -> Self {
+        PortType::Value { space, unit: None }
+    }
+
+    /// A value port in `space` with `unit`.
+    pub fn value_in(space: Space, unit: &str) -> Self {
+        PortType::Value {
+            space,
+            unit: Some(unit.into()),
+        }
+    }
+
     /// The most specific type both accept, or `None` on a mismatch.
     pub fn unify(&self, other: &PortType) -> Option<PortType> {
+        self.unify_or_why(other).ok()
+    }
+
+    /// [`PortType::unify`], with the reason when they do not unify
+    /// (`"km and m measure the same at another scale — convert
+    /// explicitly"`). A unit variable unifies with any unit here; it is
+    /// bound per block by [`type_issues`].
+    pub fn unify_or_why(&self, other: &PortType) -> Result<PortType, String> {
+        use PortType::*;
+        let plain = || format!("{} and {} do not meet", self.describe(), other.describe());
+        match (self, other) {
+            (Value { space: a, unit: ua }, Value { space: b, unit: ub }) => {
+                let space = a.meet(b).ok_or_else(|| {
+                    format!("{a} and {b} do not meet — neither space contains the other")
+                })?;
+                let unit = match (ua, ub) {
+                    (Some(x), Some(y)) => {
+                        if let Some(why) = units::unit_refusal(x, y) {
+                            return Err(why);
+                        }
+                        // A concrete unit wins over a unit variable.
+                        Some(
+                            if x.trim_start().starts_with('\'') {
+                                y
+                            } else {
+                                x
+                            }
+                            .clone(),
+                        )
+                    }
+                    (Some(x), None) | (None, Some(x)) => Some(x.clone()),
+                    (None, None) => None,
+                };
+                Ok(Value { space, unit })
+            }
+            (Value { space, .. }, Scalar) | (Scalar, Value { space, .. }) => {
+                if space.is_scalar() {
+                    Ok(if matches!(self, Value { .. }) {
+                        self
+                    } else {
+                        other
+                    }
+                    .clone())
+                } else {
+                    Err(format!("{space} is not a single number"))
+                }
+            }
+            _ => self.unify_plain(other).ok_or_else(plain),
+        }
+    }
+
+    fn unify_plain(&self, other: &PortType) -> Option<PortType> {
         use PortType::*;
         match (self, other) {
             (Any, t) | (t, Any) => Some(t.clone()),
@@ -75,6 +156,11 @@ impl PortType {
             PortType::Any => "any".into(),
             PortType::Scalar => "scalar".into(),
             PortType::Named { name } => name.clone(),
+            PortType::Value { space, unit: None } => space.to_string(),
+            PortType::Value {
+                space,
+                unit: Some(u),
+            } => format!("{space} [{u}]"),
             PortType::Tensor { shape } if shape.is_empty() => "tensor".into(),
             PortType::Tensor { shape } => format!(
                 "tensor[{}]",
@@ -116,6 +202,19 @@ pub enum ParamKind {
     Choice {
         /// The choices.
         options: Vec<String>,
+    },
+    /// The space of the block's pin `pin` (ADR-0032 §4): refines the
+    /// kind's type of that pin; empty keeps it. Offered as
+    /// [`Space::CHOICES`], a dimension typed (`simplex(3)`).
+    Space {
+        /// The pin it refines.
+        pin: String,
+    },
+    /// The unit of the block's pin `pin` (ADR-0032 §4): `m/s`; empty
+    /// keeps the kind's.
+    Unit {
+        /// The pin it refines.
+        pin: String,
     },
 }
 
@@ -345,6 +444,60 @@ pub struct Block {
     /// §5). Omitted when false.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub mirror: bool,
+    /// The innermost plate the block is in (ADR-0032 §1): a [`Plate`]
+    /// id of the same scope. Omitted when the block is in none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plate: Option<String>,
+}
+
+/// A plate (ADR-0032 §1): an index over the blocks in it, stored once
+/// and drawn once with its multiplicity (LT-03). Membership is
+/// [`Block::plate`]; the plate has no geometry of its own.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Plate {
+    /// Unique within its scope.
+    pub id: String,
+    /// The index name (`i`), a Julia identifier.
+    pub index: String,
+    /// A whole number ≥ 1, or empty: as many as the data.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub size: String,
+    /// The plate it nests in (layers × heads), in the same scope.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+}
+
+impl Plate {
+    /// The largest size a plate states.
+    pub const MAX_SIZE: u64 = 1 << 40;
+
+    /// Its stated size, `Ok(None)` when it comes from the data.
+    pub fn size(&self) -> Result<Option<u64>, String> {
+        let t = self.size.trim();
+        if t.is_empty() {
+            return Ok(None);
+        }
+        t.parse::<u64>()
+            .ok()
+            .filter(|n| (1..=Plate::MAX_SIZE).contains(n))
+            .map(Some)
+            .ok_or_else(|| {
+                format!(
+                    "plate {}: the size {t:?} is not a whole number ≥ 1 (or empty: as many as the data)",
+                    self.id
+                )
+            })
+    }
+
+    /// The multiplicity badge: `i = 1…3`, `i = 1…n` when data-sized.
+    pub fn label(&self) -> String {
+        let n = match self.size() {
+            Ok(Some(n)) => n.to_string(),
+            _ => "n".into(),
+        };
+        format!("{} = 1…{n}", self.index)
+    }
 }
 
 fn is_zero(n: &u8) -> bool {
@@ -414,6 +567,9 @@ pub struct Subflow {
     /// subsystem is never a variable (`validate` says so).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<Role>,
+    /// The subflow's plates (ADR-0032 §1).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub plates: Vec<Plate>,
 }
 
 impl Subflow {
@@ -439,6 +595,9 @@ pub struct Flow {
     /// The subflows (ADR-0021): subsystems referenced by
     /// [`Block::subflow`]. Empty in every pre-subflow flow.
     pub subflows: Vec<Subflow>,
+    /// The root scope's plates (ADR-0032 §1). Omitted when empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub plates: Vec<Plate>,
 }
 
 /// The id prefix of a boundary pseudo-block (ADR-0021 §3): inside a
@@ -458,6 +617,8 @@ pub struct Scope<'a> {
     pub blocks: &'a [Block],
     /// The scope's wires — they may name boundary pseudo-blocks.
     pub wires: &'a [Wire],
+    /// The scope's plates (ADR-0032).
+    pub plates: &'a [Plate],
 }
 
 impl Flow {
@@ -504,6 +665,7 @@ impl Flow {
     pub fn scope(&self, path: &[String]) -> Option<Scope<'_>> {
         let mut blocks = &self.blocks[..];
         let mut wires = &self.wires[..];
+        let mut plates = &self.plates[..];
         for id in path {
             let sub = self.subflow(id)?;
             if !blocks
@@ -514,8 +676,13 @@ impl Flow {
             }
             blocks = &sub.blocks[..];
             wires = &sub.wires[..];
+            plates = &sub.plates[..];
         }
-        Some(Scope { blocks, wires })
+        Some(Scope {
+            blocks,
+            wires,
+            plates,
+        })
     }
 
     /// Run `f` on the scope's blocks and wires (ADR-0021 §4) — the
@@ -528,15 +695,27 @@ impl Flow {
         path: &[String],
         mut f: impl FnMut(&mut Vec<Block>, &mut Vec<Wire>) -> R,
     ) -> Option<R> {
-        fn run<R, F: FnMut(&mut Vec<Block>, &mut Vec<Wire>) -> R>(
+        self.with_scope_plates(path, |blocks, wires, _| f(blocks, wires))
+    }
+
+    /// [`with_scope`](Self::with_scope), with the scope's plates too
+    /// (ADR-0032): making a plate, or taking blocks out of one, writes
+    /// the scope's blocks and plates together.
+    pub fn with_scope_plates<R>(
+        &mut self,
+        path: &[String],
+        mut f: impl FnMut(&mut Vec<Block>, &mut Vec<Wire>, &mut Vec<Plate>) -> R,
+    ) -> Option<R> {
+        fn run<R, F: FnMut(&mut Vec<Block>, &mut Vec<Wire>, &mut Vec<Plate>) -> R>(
             blocks: &mut Vec<Block>,
             wires: &mut Vec<Wire>,
+            plates: &mut Vec<Plate>,
             subs: &mut Vec<Subflow>,
             path: &[String],
             f: &mut F,
         ) -> Option<R> {
             match path.split_first() {
-                None => Some(f(blocks, wires)),
+                None => Some(f(blocks, wires, plates)),
                 Some((id, rest)) => {
                     if !blocks
                         .iter()
@@ -548,9 +727,18 @@ impl Flow {
                     let mut sub = std::mem::take(&mut subs[i]);
                     let mut inner_blocks = std::mem::take(&mut sub.blocks);
                     let mut inner_wires = std::mem::take(&mut sub.wires);
-                    let r = run(&mut inner_blocks, &mut inner_wires, subs, rest, f);
+                    let mut inner_plates = std::mem::take(&mut sub.plates);
+                    let r = run(
+                        &mut inner_blocks,
+                        &mut inner_wires,
+                        &mut inner_plates,
+                        subs,
+                        rest,
+                        f,
+                    );
                     sub.blocks = inner_blocks;
                     sub.wires = inner_wires;
+                    sub.plates = inner_plates;
                     subs[i] = sub;
                     r
                 }
@@ -559,6 +747,7 @@ impl Flow {
         run(
             &mut self.blocks,
             &mut self.wires,
+            &mut self.plates,
             &mut self.subflows,
             path,
             &mut f,
@@ -786,6 +975,14 @@ fn wire_issue(
             ),
         })
     } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
+        // The bipartite rule first: two factors are refused for that,
+        // whatever their channels' types (ADR-0022, ADR-0032).
+        if let Some(why) = bipartite_refusal(fk, tk) {
+            return Some(Issue {
+                about,
+                message: format!("{from_block}.{from_port} – {to_block}.{to_port}: {why}"),
+            });
+        }
         if a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)).is_none() {
             return Some(Issue {
                 about,
@@ -800,10 +997,7 @@ fn wire_issue(
                 ),
             });
         }
-        bipartite_refusal(fk, tk).map(|why| Issue {
-            about,
-            message: format!("{from_block}.{from_port} – {to_block}.{to_port}: {why}"),
-        })
+        None
     } else if out.is_some() || inp.is_some() || pin_f.is_some() || pin_t.is_some() {
         Some(Issue {
             about,
@@ -1222,6 +1416,13 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
                 message: format!("{subid}: {e}", subid = sub.id),
             });
         }
+    }
+    // Types and plates (ADR-0032), scope by scope.
+    issues.extend(typing::scope_issues(typing::View::root(flow, libraries)));
+    for sub in &flow.subflows {
+        issues.extend(typing::scope_issues(typing::View::inside(
+            flow, sub, libraries,
+        )));
     }
     // Subflows nest, but a subflow may not reference itself — directly
     // or through another (flattening recurses; a cycle would never
@@ -1790,6 +1991,7 @@ mod tests {
                 false,
             )],
             role: None,
+            plates: vec![],
         }
     }
 

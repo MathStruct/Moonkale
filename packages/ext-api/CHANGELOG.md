@@ -1,5 +1,13 @@
 # Changelog — the library crates
 
+## ext-api-2026-11-19 — plates and typed spaces (ADR-0032, WP-37)
+
+- `flow::Plate` and `Flow::plates`, `Subflow::plates`, `Block::plate` (all defaulted and omitted from JSON when empty: older files read and write unchanged). Full `Block { … }` literals add `plate: None`, full `Subflow { … }` literals `plates: vec![]`. `Scope` gains `plates`; `Flow::with_scope_plates` mutates a scope's blocks, wires and plates together.
+- `PortType::Value { space, unit }` with `flow::Space` (containment-ordered domains) and `flow::units` (an SI unit parser, unit variables `'u^k`). `PortType::unify_or_why` gives the reason a unify fails. Exhaustive matches on `PortType` need the new arm.
+- `ParamKind::Space { pin }` and `ParamKind::Unit { pin }` refine a block's pin from its parameters. Exhaustive matches on `ParamKind` need the new arms.
+- `validate` reports type and plate issues per scope (`flow::type_issues`); `flow::wire_refusal` is the same check for one new wire (the editor's gesture); `flow::plates_of` gives a block's plates, innermost first.
+- graph-render: `InGroup::badge` draws a group's label at its hull's upper right corner (default off).
+
 ## ext-api-2026-11-18 — a subsystem as one factor (ADR-0022 stage C, WP-08)
 
 - `flow::Subflow` gains `role: Option<Role>` (defaulted, and omitted from JSON when `None`, so every older file reads and writes unchanged). Full `Subflow { … }` literals must add `role: None`; literals finished with `..Default::default()` keep compiling.

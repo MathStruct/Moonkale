@@ -19,8 +19,9 @@ use dioxus::prelude::*;
 use moonkale_canvas_layer::{CanvasCamera, CanvasHeader, CanvasItem, CanvasLayer, CardDrag};
 use moonkale_core::NodeId as CoreNodeId;
 use moonkale_ext_api::flow::{
-    bipartite_refusal, channel_refusal, find_kind, inner_ports, validate, Block, BlockPorts, Flow,
-    FlowLibrary, ParamKind, Port, PortType, Role, Subflow, Wire, BOUNDARY,
+    bipartite_refusal, channel_refusal, find_kind, inner_ports, plates_of, validate, wire_refusal,
+    Block, BlockPorts, Flow, FlowLibrary, ParamKind, Plate, Port, PortType, Role, Space, Subflow,
+    Wire, BOUNDARY,
 };
 use moonkale_ext_api::{t, Workspace};
 use moonkale_graph_assets::{RENDER_JS, RENDER_WASM};
@@ -51,7 +52,8 @@ fn kind_color(kind: &str) -> &'static str {
 fn port_color(ty: &PortType) -> &'static str {
     match ty {
         PortType::Any => "#8b93a5",
-        PortType::Scalar => "#8ccf6a",
+        // A value in a space is a number too (ADR-0032).
+        PortType::Scalar | PortType::Value { .. } => "#8ccf6a",
         PortType::Tensor { .. } => "#ffe459",
         PortType::Named { .. } => "#e86b8a",
     }
@@ -112,11 +114,57 @@ struct OutPort {
     color: &'static str,
 }
 
+/// A plate as the engine's group (ADR-0032 §5, spec 031 §4): a tinted
+/// hull around its members, its label the multiplicity badge.
+#[derive(Serialize, Debug, PartialEq)]
+struct OutGroup {
+    id: String,
+    label: String,
+    members: Vec<String>,
+    badge: bool,
+}
+
 #[derive(Serialize)]
 struct OutScene<'a> {
     nodes: Vec<OutNode<'a>>,
     edges: Vec<OutEdge<'a>>,
     ports: Vec<OutPort>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    groups: Vec<OutGroup>,
+}
+
+/// A scope's plates as groups, outermost first so inner hulls draw on
+/// top: a block is a member of its plate and of every plate around it.
+fn plate_groups(plates: &[Plate], blocks: &[Block]) -> Vec<OutGroup> {
+    let mut out: Vec<(usize, OutGroup)> = plates
+        .iter()
+        .map(|p| {
+            let depth = plates_of(
+                plates,
+                &Block {
+                    plate: Some(p.id.clone()),
+                    ..Default::default()
+                },
+            )
+            .len();
+            let members = blocks
+                .iter()
+                .filter(|b| plates_of(plates, b).iter().any(|q| q.id == p.id))
+                .map(|b| b.id.clone())
+                .collect();
+            (
+                depth,
+                OutGroup {
+                    id: format!("plate:{}", p.id),
+                    label: p.label(),
+                    members,
+                    badge: true,
+                },
+            )
+        })
+        .collect();
+    out.sort_by_key(|(d, _)| *d);
+    out.into_iter().map(|(_, g)| g).collect()
 }
 
 /// `Flow` → the engine's scene. The ids are the blocks' and wires' ids, so
@@ -158,7 +206,7 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
             resolved,
         });
     }
-    b.edges(
+    let mut scene = b.edges(
         &flow.wires,
         &|id, port| {
             flow.blocks
@@ -169,7 +217,9 @@ fn to_scene<'a>(flow: &'a Flow, libs: &'a [FlowLibrary], issues: &[Issue]) -> Ou
         },
         issues,
         "",
-    )
+    );
+    scene.groups = plate_groups(&flow.plates, &flow.blocks);
+    scene
 }
 
 /// An entered subflow's scene (ADR-0021 §3-4): its own blocks and wires,
@@ -288,7 +338,7 @@ fn subflow_scene<'a>(
             resolved,
         });
     }
-    b.edges(
+    let mut scene = b.edges(
         &sub.wires,
         &|id, port| {
             if let Some(name) = id.strip_prefix(BOUNDARY) {
@@ -305,7 +355,9 @@ fn subflow_scene<'a>(
         },
         issues,
         &sub.id,
-    )
+    );
+    scene.groups = plate_groups(&sub.plates, &sub.blocks);
+    scene
 }
 
 /// The name a block shows: a factor graph's variable its own (θ, y),
@@ -632,6 +684,7 @@ impl<'a> SceneBuilder<'a> {
             nodes: self.nodes,
             edges,
             ports: self.ports,
+            groups: Vec::new(),
         }
     }
 }
@@ -853,7 +906,13 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             .and_then(|id| {
                 let b = current.scope(&open)?.blocks.iter().find(|b| &b.id == id)?;
                 let (_, k) = find_kind(&libs, &b.kind)?;
-                Some(mapping.visible(parameter_card_bounds(b, k.params.len()), [100.0, 32.0]))
+                Some(mapping.visible(
+                    parameter_card_bounds(
+                        b,
+                        k.params.len() + if b.plate.is_some() { 4 } else { 1 },
+                    ),
+                    [100.0, 32.0],
+                ))
             })
             .unwrap_or(false);
         let after = current.to_json();
@@ -1229,12 +1288,11 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             return;
         };
         let open = scope.read().clone();
-        let n = flow
+        let (col, row) = flow
             .read()
             .scope(&open)
-            .map(|sc| sc.blocks.len())
-            .unwrap_or(0);
-        let (col, row) = ((n % 3) as f64, (n / 3) as f64);
+            .map(|sc| free_slot(sc.blocks))
+            .unwrap_or((0.0, 0.0));
         let params: BTreeMap<String, String> = k
             .params
             .iter()
@@ -1262,6 +1320,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     subflow: None, // a palette block is a library block
                     mirror: false,
                     turn: 0,
+                    plate: None,
                 });
             });
         });
@@ -1324,6 +1383,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                     subflow: Some(format!("subflow-{suffix}")),
                     mirror: false,
                     turn: 0,
+                    plate: None,
                 });
             });
         });
@@ -1349,6 +1409,32 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
         });
         push_undo(undo_stack, redo_stack, before);
         sync(&flow, &mut last_text, &mut doc, &broken);
+    };
+
+    // Plates (ADR-0032 §1): the selection goes into a new plate, nested
+    // in the plate the blocks share; a block leaves for its plate's
+    // parent; a plate's index and size are edited in place. Each is
+    // one undo step, and a plate nothing is in any more goes.
+    let edit_plates = move |(op, ids): (PlateOp, Vec<String>)| {
+        if broken.peek().is_some() {
+            return;
+        }
+        let open = scope.read().clone();
+        let before = flow.read().to_json();
+        let mut refused: Option<String> = None;
+        flow.with_mut(|f| {
+            let _ = f.with_scope_plates(&open, |blocks, _, plates| {
+                match apply_plate_op(&op, &ids, blocks, plates) {
+                    Ok(()) => {}
+                    Err(why) => refused = Some(why),
+                }
+            });
+        });
+        notice.set(refused);
+        if flow.read().to_json() != before {
+            push_undo(undo_stack, redo_stack, before);
+            sync(&flow, &mut last_text, &mut doc, &broken);
+        }
     };
 
     // R turns the given blocks a quarter clockwise, M mirrors them left
@@ -1724,7 +1810,7 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                             canvas { id: "{id}-ov", class: "mk-flow-ov", tabindex: "0" }
                             CanvasLayer { camera: camera(),
                             if let (Some(b), Some(k)) = (sel_block.as_ref(), sel_kind.as_ref()) {
-                                CanvasItem { camera: camera(), bounds: parameter_card_bounds(b, k.params.len()),
+                                CanvasItem { camera: camera(), bounds: parameter_card_bounds(b, k.params.len() + if b.plate.is_some() { 3 } else { 1 }),
                                 div {
                                     class: "mk-flow-props",
                                     // Keys typed into a parameter field must not
@@ -1809,10 +1895,69 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
                                                             input { r#type: "checkbox", checked: value == "true",
                                                                 onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.checked().to_string())) )}
                                                         },
+                                                        // A space is one of the list or a typed
+                                                        // dimension (`simplex(3)`, ADR-0032 §4).
+                                                        ParamKind::Space { .. } => rsx! {
+                                                            input { value: "{value}", size: 10, list: "{id}-spaces", class: "mk-flow-space",
+                                                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value())) )}
+                                                        },
                                                         _ => rsx! {
                                                             input { value: "{value}", size: 6,
                                                                 onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| set_param((bid.clone(), name.clone(), e.value())) )}
                                                         },
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    datalist { id: "{id}-spaces",
+                                        for sp in Space::CHOICES.iter() { option { value: "{sp}" } }
+                                    }
+                                    // The block's plate (ADR-0032 §1): one select puts it
+                                    // in none, in a plate of this scope, or in a new
+                                    // plate (nested in its current one); the plate's
+                                    // index and size are edited below it.
+                                    {
+                                        let open = scope.read().clone();
+                                        let plates: Vec<Plate> = flow.read().scope(&open).map(|sc| sc.plates.to_vec()).unwrap_or_default();
+                                        let plate = b.plate.as_ref().and_then(|pid| plates.iter().find(|p| &p.id == pid).cloned());
+                                        let current = b.plate.clone().unwrap_or_default();
+                                        let who = vec![b.id.clone()];
+                                        let (mut e0, mut e1, mut e2) = (edit_plates, edit_plates, edit_plates);
+                                        rsx! {
+                                            label { class: "mk-flow-param", title: t!(ws, L, "flow-plate-title"),
+                                                span { {t!(ws, L, "flow-plate")} }
+                                                select { class: "mk-flow-plate-pick", value: "{current}",
+                                                    onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| {
+                                                        let v = e.value();
+                                                        let op = match v.as_str() {
+                                                            "" => PlateOp::Join(None),
+                                                            NEW_PLATE => PlateOp::New,
+                                                            _ => PlateOp::Join(Some(v)),
+                                                        };
+                                                        e0((op, who.clone()))
+                                                    }),
+                                                    option { value: "", selected: current.is_empty(), {t!(ws, L, "flow-plate-none")} }
+                                                    for p in plates.iter() {
+                                                        option { key: "{p.id}", value: "{p.id}", selected: p.id == current, "{p.label()}" }
+                                                    }
+                                                    option { value: NEW_PLATE, {t!(ws, L, "flow-plate-new")} }
+                                                }
+                                            }
+                                            if let Some(p) = plate {
+                                                {
+                                                    let (pi, ps) = (p.id.clone(), p.id.clone());
+                                                    rsx! {
+                                                        label { class: "mk-flow-param", title: t!(ws, L, "flow-plate-index-title"),
+                                                            span { {t!(ws, L, "flow-plate-index")} }
+                                                            input { value: "{p.index}", size: 4, class: "mk-flow-plate-index",
+                                                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| e1((PlateOp::Index(pi.clone(), e.value()), Vec::new()))) }
+                                                        }
+                                                        label { class: "mk-flow-param", title: t!(ws, L, "flow-plate-size-title"),
+                                                            span { {t!(ws, L, "flow-plate-size")} }
+                                                            input { value: "{p.size}", size: 6, class: "mk-flow-plate-size", placeholder: "n",
+                                                                onchange: moonkale_ext_api::crash::event(move |e: dioxus::prelude::FormEvent| e2((PlateOp::Size(ps.clone(), e.value()), Vec::new()))) }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1964,6 +2109,11 @@ fn wire(
                 )),
             }
         } else if let (Some(a), Some(b)) = (pin_f, pin_t) {
+            // The bipartite rule first (ADR-0022): two factors are refused
+            // for being two factors, whatever their channels' types.
+            if let Some(why) = bipartite_refusal(&fp, &tp) {
+                return (false, why);
+            }
             // Either drag order; domains unify symmetrically.
             match a.ty.unify(&b.ty).or_else(|| b.ty.unify(&a.ty)) {
                 Some(_) => {
@@ -2011,6 +2161,18 @@ fn wire(
                         ) {
                             return (false, why);
                         }
+                    }
+                    // Spaces, units and plates (ADR-0032) — again the
+                    // words `validate` uses.
+                    let candidate = Wire {
+                        id: String::new(),
+                        from_block: from.node.clone(),
+                        from_port: from.port.clone(),
+                        to_block: to.node.clone(),
+                        to_port: to.port.clone(),
+                    };
+                    if let Some(why) = wire_refusal(&f, path, libs, &candidate) {
+                        return (false, why);
                     }
                     Ok(Accepted::Equation)
                 }
@@ -2063,6 +2225,148 @@ fn wire(
     }
 }
 
+/// How far right of a plate's members a joining block lands (a palette
+/// column).
+const PLATE_STEP: f64 = 165.0;
+
+/// The plate select's value for "a new plate".
+const NEW_PLATE: &str = "+new";
+
+/// An edit of a scope's plates (ADR-0032 §1).
+#[derive(Clone, Debug, PartialEq)]
+enum PlateOp {
+    /// The given blocks go into a new plate.
+    New,
+    /// The given blocks go into this plate, or into none.
+    Join(Option<String>),
+    /// A plate's index name.
+    Index(String, String),
+    /// A plate's size.
+    Size(String, String),
+}
+
+/// Apply `op` to a scope's blocks and plates; `Err` says why it was
+/// refused. A plate no block is in any more is removed.
+fn apply_plate_op(
+    op: &PlateOp,
+    ids: &[String],
+    blocks: &mut [Block],
+    plates: &mut Vec<Plate>,
+) -> Result<(), String> {
+    match op {
+        PlateOp::New => {
+            let chosen: Vec<&Block> = blocks.iter().filter(|b| ids.contains(&b.id)).collect();
+            let Some(first) = chosen.first() else {
+                return Ok(());
+            };
+            let parent = first.plate.clone();
+            if chosen.iter().any(|b| b.plate != parent) {
+                return Err("the selected blocks are in different plates".into());
+            }
+            let id = (1..)
+                .map(|n| format!("plate{n}"))
+                .find(|id| !plates.iter().any(|p| &p.id == id))
+                .unwrap_or_default();
+            // An index not used by the plates around it.
+            let around: Vec<String> = plates_of(
+                plates,
+                &Block {
+                    plate: parent.clone(),
+                    ..Default::default()
+                },
+            )
+            .iter()
+            .map(|p| p.index.clone())
+            .collect();
+            let index = ["i", "j", "k", "t", "l", "m"]
+                .iter()
+                .find(|x| !around.iter().any(|a| a == *x))
+                .unwrap_or(&"n")
+                .to_string();
+            plates.push(Plate {
+                id: id.clone(),
+                index,
+                size: String::new(),
+                parent,
+            });
+            for b in blocks.iter_mut().filter(|b| ids.contains(&b.id)) {
+                b.plate = Some(id.clone());
+            }
+        }
+        PlateOp::Join(target) => {
+            if let Some(t) = target {
+                if !plates.iter().any(|p| &p.id == t) {
+                    return Err(format!("there is no plate {t} here"));
+                }
+            }
+            // The hull is the box around the plate's members (spec 031
+            // §4), so a block joining from outside that box moves to its
+            // right: otherwise the box would also cover the blocks in
+            // between, which are not in the plate.
+            let bbox = target.as_ref().and_then(|t| {
+                blocks
+                    .iter()
+                    .filter(|b| !ids.contains(&b.id))
+                    .filter(|b| plates_of(plates, b).iter().any(|p| &p.id == t))
+                    .fold(None, |a: Option<[f64; 4]>, b| {
+                        Some(match a {
+                            None => [b.x, b.y, b.x, b.y],
+                            Some([x0, y0, x1, y1]) => {
+                                [x0.min(b.x), y0.min(b.y), x1.max(b.x), y1.max(b.y)]
+                            }
+                        })
+                    })
+            });
+            let mut next_x = bbox.map(|[_, _, x1, _]| x1 + PLATE_STEP);
+            for b in blocks.iter_mut().filter(|b| ids.contains(&b.id)) {
+                b.plate = target.clone();
+                if let (Some([x0, y0, x1, y1]), Some(x)) = (bbox, next_x) {
+                    let inside = (x0..=x1).contains(&b.x) && (y0..=y1).contains(&b.y);
+                    if !inside {
+                        b.x = x;
+                        b.y = y0;
+                        next_x = Some(x + PLATE_STEP);
+                    }
+                }
+            }
+        }
+        PlateOp::Index(pid, v) => {
+            if let Some(p) = plates.iter_mut().find(|p| &p.id == pid) {
+                p.index = v.trim().to_string();
+            }
+        }
+        PlateOp::Size(pid, v) => {
+            if let Some(p) = plates.iter_mut().find(|p| &p.id == pid) {
+                p.size = v.trim().to_string();
+            }
+        }
+    }
+    // Plates nothing is in any more go (a plate around a used plate
+    // stays).
+    let used: std::collections::BTreeSet<String> = blocks
+        .iter()
+        .flat_map(|b| plates_of(plates, b).into_iter().map(|p| p.id.clone()))
+        .collect();
+    plates.retain(|p| used.contains(&p.id));
+    Ok(())
+}
+
+/// The palette's next grid slot `(column, row)`: three columns, counting
+/// from the number of blocks, skipping a slot a block already stands on
+/// (a block moved there, or one that joined a plate).
+fn free_slot(blocks: &[Block]) -> (f64, f64) {
+    let taken = |col: f64, row: f64| {
+        let (x, y) = (30.0 + col * 165.0, 30.0 + row * 170.0);
+        blocks
+            .iter()
+            .any(|b| (b.x - x).abs() < 80.0 && (b.y - y).abs() < 80.0)
+    };
+    (blocks.len()..blocks.len() + 4096)
+        .map(|n| ((n % 3) as f64, (n / 3) as f64))
+        .find(|(c, r)| !taken(*c, *r))
+        .unwrap_or(((blocks.len() % 3) as f64, (blocks.len() / 3) as f64))
+}
+
 fn snap_position(value: f64, grid: u16) -> f64 {
     if grid == 0 {
         value
@@ -2073,6 +2377,138 @@ fn snap_position(value: f64, grid: u16) -> f64 {
 
 #[cfg(test)]
 mod tests {
+
+    fn b(id: &str, plate: Option<&str>) -> Block {
+        Block {
+            id: id.into(),
+            plate: plate.map(String::from),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn the_palette_skips_a_slot_a_block_stands_on() {
+        let at = |id: &str, x: f64, y: f64| Block {
+            id: id.into(),
+            x,
+            y,
+            ..Default::default()
+        };
+        // Two blocks: the next slot is the third column…
+        assert_eq!(
+            free_slot(&[at("a", 30.0, 30.0), at("b", 195.0, 30.0)]),
+            (2.0, 0.0)
+        );
+        // …unless a moved block stands there.
+        assert_eq!(
+            free_slot(&[at("a", 30.0, 30.0), at("b", 360.0, 30.0)]),
+            (0.0, 1.0)
+        );
+    }
+
+    #[test]
+    fn plates_become_groups_outermost_first_with_their_badge() {
+        let plates = vec![
+            Plate {
+                id: "inner".into(),
+                index: "j".into(),
+                size: "4".into(),
+                parent: Some("outer".into()),
+            },
+            Plate {
+                id: "outer".into(),
+                index: "i".into(),
+                ..Default::default()
+            },
+        ];
+        let blocks = vec![b("a", Some("inner")), b("c", Some("outer")), b("d", None)];
+        let g = plate_groups(&plates, &blocks);
+        assert_eq!(g.len(), 2);
+        assert_eq!(g[0].id, "plate:outer");
+        assert_eq!(g[0].label, "i = 1…n");
+        assert_eq!(g[0].members, vec!["a".to_string(), "c".to_string()]);
+        assert_eq!(g[1].label, "j = 1…4");
+        assert_eq!(g[1].members, vec!["a".to_string()]);
+    }
+
+    #[test]
+    fn plate_ops_nest_refuse_mixed_plates_and_drop_empty_plates() {
+        let mut blocks = vec![b("a", None), b("c", None), b("d", None)];
+        let mut plates = Vec::new();
+        let ids = |x: &[&str]| x.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        apply_plate_op(&PlateOp::New, &ids(&["a", "c"]), &mut blocks, &mut plates).unwrap();
+        assert_eq!(plates.len(), 1);
+        assert_eq!(plates[0].index, "i");
+        assert_eq!(blocks[0].plate.as_deref(), Some("plate1"));
+        // Nested: a new plate inside the shared one takes the next index.
+        apply_plate_op(&PlateOp::New, &ids(&["a"]), &mut blocks, &mut plates).unwrap();
+        assert_eq!(plates[1].parent.as_deref(), Some("plate1"));
+        assert_eq!(plates[1].index, "j");
+        // Mixed plates are refused, nothing changes.
+        let before = (blocks.clone(), plates.clone());
+        let err = apply_plate_op(&PlateOp::New, &ids(&["a", "d"]), &mut blocks, &mut plates);
+        assert!(err.is_err());
+        assert_eq!((blocks.clone(), plates.clone()), before);
+        apply_plate_op(
+            &PlateOp::Size("plate1".into(), " 3 ".into()),
+            &[],
+            &mut blocks,
+            &mut plates,
+        )
+        .unwrap();
+        assert_eq!(plates[0].size, "3");
+        // Back to the outer plate: the inner one is empty and goes.
+        apply_plate_op(
+            &PlateOp::Join(Some("plate1".into())),
+            &ids(&["a"]),
+            &mut blocks,
+            &mut plates,
+        )
+        .unwrap();
+        assert_eq!(blocks[0].plate.as_deref(), Some("plate1"));
+        assert_eq!(plates.len(), 1);
+        apply_plate_op(
+            &PlateOp::Join(None),
+            &ids(&["a", "c"]),
+            &mut blocks,
+            &mut plates,
+        )
+        .unwrap();
+        assert!(plates.is_empty() && blocks.iter().all(|b| b.plate.is_none()));
+        // Join another block into an existing plate.
+        apply_plate_op(&PlateOp::New, &ids(&["a"]), &mut blocks, &mut plates).unwrap();
+        let pid = plates[0].id.clone();
+        blocks[1].x = 500.0; // c stands away from the plate
+        apply_plate_op(
+            &PlateOp::Join(Some(pid.clone())),
+            &ids(&["c"]),
+            &mut blocks,
+            &mut plates,
+        )
+        .unwrap();
+        assert_eq!(blocks[1].plate.as_deref(), Some(pid.as_str()));
+        // c joined from outside the plate's box: it moved next to a.
+        assert_eq!(
+            (blocks[1].x, blocks[1].y),
+            (blocks[0].x + PLATE_STEP, blocks[0].y)
+        );
+        assert!(apply_plate_op(
+            &PlateOp::Join(Some("nope".into())),
+            &ids(&["d"]),
+            &mut blocks,
+            &mut plates
+        )
+        .is_err());
+        apply_plate_op(
+            &PlateOp::Join(None),
+            &ids(&["a", "c"]),
+            &mut blocks,
+            &mut plates,
+        )
+        .unwrap();
+        assert!(plates.is_empty());
+    }
+
     use super::*;
     use moonkale_ext_api::flow::Subflow;
     use moonkale_ext_api::flow::{Anchor, Side, Symbol};

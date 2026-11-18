@@ -28,3 +28,11 @@ flow-fit-title = Fit the whole flow into the view
 
 flow-grid = Grid
 flow-grid-title = Grid spacing (0 disables); hold Alt to drag freely
+flow-plate = plate
+flow-plate-title = The plate this block is in: drawn once, repeated for each index value
+flow-plate-none = —
+flow-plate-new = new plate
+flow-plate-index = index
+flow-plate-index-title = The plate's index name (i, t, layer)
+flow-plate-size = size
+flow-plate-size-title = How many copies; empty means as many as the data

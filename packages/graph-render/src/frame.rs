@@ -409,6 +409,29 @@ fn build_hulls(graph: &Graph, f: &mut Frame) {
     }
 }
 
+/// Where a group's label sits (ADR-0032 §5: a plate's multiplicity
+/// badge): the upper right corner of its hull in world units (block
+/// names and captions hang below their blocks), over every
+/// member (the overlay has no per-frame visibility). `None` for a hidden,
+/// unlabelled, non-badge or empty group.
+pub fn group_label_anchor(graph: &Graph, g: &crate::graph::Group) -> Option<(f32, f32)> {
+    if !g.visible || !g.badge || g.label.is_empty() {
+        return None;
+    }
+    let (mut x1, mut y0, mut rim) = (f32::MIN, f32::MAX, 0.0f32);
+    for &i in &g.members {
+        let n = graph.nodes.get(i)?;
+        x1 = x1.max(n.x + n.radius);
+        y0 = y0.min(n.y - n.radius);
+        rim = rim.max(n.radius);
+    }
+    if g.members.is_empty() {
+        return None;
+    }
+    let pad = rim + HULL_PAD;
+    Some((x1 + pad, y0 - pad))
+}
+
 /// Hyperedges (spec 031 §2, stage 5): one junction per hyperedge — a
 /// marker at the members' centroid, a spoke to each member. The spokes
 /// are segments owned by `None` (never picked as an edge — a hyperedge
@@ -1537,7 +1560,26 @@ mod tests {
             color: crate::graph::parse_hex(color, 1.0).unwrap(),
             visible: true,
             highlight: false,
+            badge: false,
         }
+    }
+
+    #[test]
+    fn a_group_label_sits_at_its_hulls_upper_right_corner() {
+        let mut g = graph(vec![node("a", 0.0, 0.0), node("b", 40.0, 10.0)], vec![]);
+        g.groups = vec![group("g", &[0, 1], "#596cff")];
+        g.groups[0].label.clear();
+        assert_eq!(group_label_anchor(&g, &g.groups[0]), None); // unlabelled
+        g.groups[0].label = "i = 1…3".into();
+        assert_eq!(group_label_anchor(&g, &g.groups[0]), None); // not a badge
+        g.groups[0].badge = true;
+        let f = build_frame(&g, false);
+        let h = f.hulls[0];
+        let (x, y) = group_label_anchor(&g, &g.groups[0]).unwrap();
+        assert!((x - (h.center[0] + h.half[0])).abs() < 1e-4, "{x}");
+        assert!((y - (h.center[1] - h.half[1])).abs() < 1e-4, "{y}");
+        g.groups[0].visible = false;
+        assert_eq!(group_label_anchor(&g, &g.groups[0]), None);
     }
 
     #[test]

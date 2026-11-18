@@ -24,3 +24,11 @@ flow-fit-title = 将整个流程适配到视图中
 
 flow-grid = 网格
 flow-grid-title = 网格间距（0 关闭）；按住 Alt 自由拖动
+flow-plate = 板
+flow-plate-title = 这个模块所在的板：只画一次，对每个索引值重复
+flow-plate-none = —
+flow-plate-new = 新板
+flow-plate-index = 索引
+flow-plate-index-title = 板的索引名（i、t、layer）
+flow-plate-size = 大小
+flow-plate-size-title = 副本数量；留空表示与数据一样多

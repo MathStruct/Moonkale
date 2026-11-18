@@ -28,3 +28,11 @@ flow-fit-title = Den ganzen Flow in die Ansicht einpassen
 
 flow-grid = Raster
 flow-grid-title = Rasterweite (0 deaktiviert); Alt für freies Ziehen
+flow-plate = Platte
+flow-plate-title = Die Platte, in der dieser Block liegt: einmal gezeichnet, für jeden Indexwert wiederholt
+flow-plate-none = —
+flow-plate-new = neue Platte
+flow-plate-index = Index
+flow-plate-index-title = Der Indexname der Platte (i, t, layer)
+flow-plate-size = Größe
+flow-plate-size-title = Wie viele Kopien; leer heißt: so viele wie die Daten

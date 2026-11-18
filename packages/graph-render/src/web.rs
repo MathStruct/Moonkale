@@ -1545,6 +1545,22 @@ fn draw_labels(s: &State) {
             ctx.restore();
         }
     }
+    // A group's label at its hull's upper right corner (ADR-0032 §5: a
+    // plate's `i = 1…N`), inside the rim, in the theme's label ink.
+    if !s.camera.three_d && s.graph.groups.iter().any(|g| g.badge) {
+        ctx.save();
+        ctx.set_font("11px 'Segoe UI', sans-serif");
+        ctx.set_text_align("right");
+        ctx.set_text_baseline("top");
+        ctx.set_fill_style_str(&s.label);
+        for g in &s.graph.groups {
+            if let Some((x, y)) = frame::group_label_anchor(&s.graph, g) {
+                let (sx, sy) = s.camera.world_to_screen(x, y);
+                let _ = ctx.fill_text(&g.label, sx as f64 - 6.0, sy as f64 + 4.0);
+            }
+        }
+        ctx.restore();
+    }
     // Labels only when there's room: zoomed in, or few nodes. Past 20k nodes
     // the overlay scan itself costs frames: hovered label only.
     let huge = s.graph.nodes.len() > 20_000;

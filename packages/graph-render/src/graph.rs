@@ -260,6 +260,8 @@ pub struct Group {
     pub color: [f32; 4],
     pub visible: bool,
     pub highlight: bool,
+    /// The label draws at the hull's upper right corner (ADR-0032 §5).
+    pub badge: bool,
 }
 
 /// The internal hyperedge (spec 031 §2): members as node indices; the
@@ -343,6 +345,11 @@ pub struct InGroup {
     /// style (a stronger tint and rim) instead of the group's wash.
     #[serde(default)]
     pub highlight: bool,
+    /// Draw the label as a badge at the hull's upper right corner
+    /// (ADR-0032 §5: a plate's `i = 1…N`). Off by default: an e-class's
+    /// label stays a control's, not ink on the canvas.
+    #[serde(default)]
+    pub badge: bool,
 }
 
 /// A hyperedge (spec 031 §2): one connection over three or more nodes,
@@ -715,6 +722,7 @@ fn resolve_group(g: InGroup, ids: &std::collections::HashMap<String, usize>) -> 
             .unwrap_or([0.35, 0.55, 0.85, 1.0]),
         visible: g.visible,
         highlight: g.highlight,
+        badge: g.badge,
     }
 }
 
@@ -1857,6 +1865,7 @@ mod delta_tests {
                 color: Some("#596cff".into()),
                 visible: true,
                 highlight: false,
+                badge: false,
             }],
             ..Default::default()
         });
@@ -1875,6 +1884,7 @@ mod delta_tests {
                 color: Some("#596cff".into()),
                 visible: true,
                 highlight: false,
+                badge: false,
             }],
             ..Default::default()
         });

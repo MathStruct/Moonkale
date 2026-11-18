@@ -58,7 +58,7 @@ What that asks of the frontend:
   - quantities carry units;
   - a wire between incompatible spaces or units is refused with the reason, like the bipartite rule's refusals today.
 
-  Mycelium's "space" (ADR-0022, not decided) gets decided here.
+  Mycelium's "space" (ADR-0022, not decided) gets decided here. **Decided and built** in [[ADR-0032 Plates and typed spaces]] (2026-11-18).
 - **LT-06 Edge directions** (Lenticulum's `Emitting`, `Absorbing`, bidirectional) and per-run polarity: which variables are observed is a run's choice, not the model's.
 - **LT-07 Learnable factors:** a factor's parameters carry priors or initial values, are marked learnable or fixed, and have an optimiser per run. A parameter's current value is visible on the factor (its caption, ADR-0024 §6).
 - **LT-08 Factors that cite (★):** a factor or a variable links to knowledge nodes (a protein, a reagent lot, a paper, a market instrument) with typed edges. The model graph and the knowledge graph are one graph ([[North Star]] §9). Imported pathways keep their database ids.
@@ -95,9 +95,9 @@ What that asks of the frontend:
 | Need | Today | Missing |
 |---|---|---|
 | Kinds, roles, ports, symbols, codegen | flow editor + 3 libraries | Lenticulum's library; edge directions (LT-06) |
-| Composition | subflows, flattening (ADR-0021) | subsystem-as-factor (ADR-0022 C) |
-| Repetition (LT-03) | — | plates in the flow model and the engine |
-| Typed spaces and units (LT-05) | domain-typed pins (`PortType::Named`) | spaces, shapes, units, and refusal by type |
+| Composition | subflows, flattening (ADR-0021), subsystem-as-factor (ADR-0022 C, 2026-11-18) | — |
+| Repetition (LT-03) | plates in the flow model, drawn once with their badge, generated as RxInfer loops ([[ADR-0032 Plates and typed spaces]], 2026-11-18) | one instance expanded on demand, symbolic sizes bound to data (with LT-09), nested plates in codegen |
+| Typed spaces and units (LT-05) | domain-typed pins; `PortType::Value` spaces and units, refused in the gesture and `validate` (ADR-0032) | shapes on values (tensor-valued variables keep `Tensor`); units in ModelingToolkit and Lux |
 | Live runs (LT-10 to 15) | — | `Moonkale.jl`, the live source, run records |
 | Scale (LT-16) | 100 k nodes in the engine | coarse tier, aggregation |
 | Plots (LT-17) | — | a plot extension ([[Plotting Requirements]]) |
