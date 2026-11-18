@@ -174,7 +174,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - runner: macos-14        # arm64 (Apple silicon)
+          - runner: macos-15        # arm64 (Apple silicon)
             arch: arm64
           - runner: macos-15-intel  # x86_64 (Intel; macos-13 was retired and its jobs queue forever)
             arch: x86_64

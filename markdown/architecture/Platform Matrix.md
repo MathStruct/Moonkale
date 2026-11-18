@@ -67,7 +67,8 @@ Remote terminal and remote LSP turn `api` into a **code-execution service**. Req
 
 Ubuntu runs the blocking workspace/browser/wasm checks. The new `portable` job
 runs filesystem and platform-branch tests on `windows-latest` and Apple-silicon
-`macos-14`, plus the default desktop extension distribution check. Both start
+`macos-15` (`macos-14` until 2026-11-18, when GitHub stopped accepting that runner
+label and the job was cancelled before it started), plus the default desktop extension distribution check. Both start
 **advisory** pending their first green GitHub runs; this is not evidence of a
 working desktop UI or installer. Desktop driver assembly and Intel macOS remain
 covered only by release builds. See [[How to Write Tests]] for exact crates,
