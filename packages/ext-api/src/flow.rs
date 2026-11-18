@@ -406,6 +406,24 @@ pub struct Subflow {
     /// Declared boundary pins — the parent block's undirected pins
     /// (ADR-0020).
     pub connections: Vec<Port>,
+    /// The subsystem's bipartite role (ADR-0022 stage C): `Factor`
+    /// makes it one factor in a factor graph. Outside, its pins are
+    /// channels (each joins one variable); inside, each boundary pin
+    /// is the outer variable seen from within ([`Subflow::boundary_role`]).
+    /// `None` (every pre-stage-C file) keeps it outside the rule; a
+    /// subsystem is never a variable (`validate` says so).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<Role>,
+}
+
+impl Subflow {
+    /// The role a boundary *pin* plays inside this subflow: a factor
+    /// subsystem's pin is the variable its channel joins outside, so
+    /// inner factors attach to it as to any variable (ADR-0022 stage C).
+    /// Directed boundary ports stay outside the rule.
+    pub fn boundary_role(&self) -> Option<Role> {
+        (self.role == Some(Role::Factor)).then_some(Role::Variable)
+    }
 }
 
 /// A `*.flow.json` file: blocks and wires.
@@ -564,7 +582,7 @@ impl Flow {
                 outputs: &s.outputs,
                 connections: &s.connections,
                 params: &[],
-                role: None,
+                role: s.role,
                 symbol: None,
                 caption: None,
             });
@@ -636,8 +654,8 @@ pub struct BlockPorts<'a> {
     pub connections: &'a [Port],
     /// Its parameters — a subflow declares none through the model.
     pub params: &'a [Param],
-    /// Its bipartite role (ADR-0022) — a subflow and a boundary
-    /// pseudo-block have none.
+    /// Its bipartite role (ADR-0022) — a subflow's is its declared
+    /// role, a factor subsystem's boundary pin is a variable inside.
     pub role: Option<Role>,
     /// Its drawing (ADR-0024) — a subflow and a boundary pseudo-block
     /// have none.
@@ -844,7 +862,7 @@ pub fn inner_ports<'a>(
                 outputs: &[],
                 connections: one(p),
                 params: &[],
-                role: None,
+                role: sub.boundary_role(),
                 symbol: None,
                 caption: None,
             });
@@ -1058,6 +1076,20 @@ pub fn validate(flow: &Flow, libraries: &[FlowLibrary]) -> Vec<Issue> {
                     message: format!("subflow id {} is not unique", s.id),
                 });
             }
+        }
+    }
+    // A subsystem is one factor or outside the rule — never a variable:
+    // a variable has no behaviour, so there is nothing to nest
+    // (ADR-0022 stage C).
+    for s in &flow.subflows {
+        if s.role == Some(Role::Variable) {
+            issues.push(Issue {
+                about: s.id.clone(),
+                message: format!(
+                    "subflow {} has the role variable — a subsystem is a factor, never a variable",
+                    s.id
+                ),
+            });
         }
     }
     // Inside a subflow (ADR-0021 §3-4): its wires type-check against
@@ -1757,6 +1789,7 @@ mod tests {
                 },
                 false,
             )],
+            role: None,
         }
     }
 
@@ -2330,6 +2363,168 @@ mod tests {
             issues
                 .iter()
                 .any(|i| i.about == "s/f" && i.message.contains("channel mean of f carries 2")),
+            "{issues:?}"
+        );
+    }
+
+    // ---- ADR-0022 stage C: a subsystem as one factor -----------------
+
+    /// A factor subsystem `s` with channels `out` and `mean`: inside, a
+    /// Normal whose mean is the boundary pin `mean` and whose out is the
+    /// boundary pin `out`; outside, the block `sub-1` referencing it.
+    fn factor_subsystem(outer: &[(&str, &str, &str, &str, &str)]) -> Flow {
+        let pin = |n: &str| Port {
+            name: n.into(),
+            ty: PortType::Any,
+            required: false,
+        };
+        let mut f = rx_flow(
+            &[("x", "variable"), ("y", "variable"), ("z", "variable")],
+            outer,
+        );
+        f.blocks.push(Block {
+            id: "sub-1".into(),
+            kind: "subflow".into(),
+            subflow: Some("s".into()),
+            ..Default::default()
+        });
+        let inner = rx_flow(
+            &[("n", "normal")],
+            &[
+                ("iw1", "boundary/mean", "mean", "n", "mean"),
+                ("iw2", "n", "out", "boundary/out", "out"),
+            ],
+        );
+        f.subflows = vec![Subflow {
+            id: "s".into(),
+            name: "Noisy".into(),
+            blocks: inner.blocks,
+            wires: inner.wires,
+            connections: vec![pin("out"), pin("mean")],
+            role: Some(Role::Factor),
+            ..Default::default()
+        }];
+        f
+    }
+
+    #[test]
+    fn a_factor_subsystem_is_one_factor_outside() {
+        let libs = vec![factor_lib()];
+        // Its channels join variables: clean.
+        let f = factor_subsystem(&[
+            ("w1", "x", "x", "sub-1", "mean"),
+            ("w2", "sub-1", "out", "y", "x"),
+        ]);
+        assert_eq!(
+            validate(&f, &libs),
+            vec![],
+            "a factor subsystem between variables"
+        );
+        let ports = f.ports_of(&libs, f.block("sub-1").unwrap()).unwrap();
+        assert_eq!(
+            ports.role,
+            Some(Role::Factor),
+            "the block carries the subflow's role"
+        );
+        // A channel is a port, not a bus — for a subsystem too.
+        let f = factor_subsystem(&[
+            ("w1", "sub-1", "out", "y", "x"),
+            ("w2", "sub-1", "out", "z", "x"),
+        ]);
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "sub-1" && i.message.contains("channel out of sub-1 carries 2")),
+            "{issues:?}"
+        );
+        assert!(channel_refusal(&ports, "sub-1", "out", 1).is_some());
+        // A factor subsystem wired to a factor: refused like any factor.
+        let mut f = factor_subsystem(&[("w1", "sub-1", "out", "g", "mean")]);
+        f.blocks.push(Block {
+            id: "g".into(),
+            kind: "rx/normal".into(),
+            ..Default::default()
+        });
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "w1" && i.message.contains("factors connect to variables")),
+            "{issues:?}"
+        );
+        // Without a role (every pre-stage-C file) it stays outside the
+        // rule, and the role is not written.
+        let mut f = factor_subsystem(&[
+            ("w1", "sub-1", "out", "y", "x"),
+            ("w2", "sub-1", "out", "z", "x"),
+        ]);
+        f.subflows[0].role = None;
+        assert!(
+            !validate(&f, &libs).iter().any(|i| i.about == "sub-1"),
+            "a role-less subsystem is outside the rule"
+        );
+        assert!(!f.to_json().contains("\"role\""), "no role, no field");
+    }
+
+    #[test]
+    fn inside_a_factor_subsystem_a_boundary_pin_is_a_variable() {
+        let libs = vec![factor_lib()];
+        let f = factor_subsystem(&[]);
+        let sub = f.subflow("s").unwrap();
+        let pin = inner_ports(&f, sub, &libs, "boundary/out").unwrap();
+        assert_eq!(pin.role, Some(Role::Variable));
+        // Two inner factors on one boundary pin: a variable fans out.
+        let mut f = factor_subsystem(&[]);
+        f.subflows[0].blocks.push(Block {
+            id: "m".into(),
+            kind: "rx/normal".into(),
+            ..Default::default()
+        });
+        f.subflows[0].wires.push(Wire {
+            id: "iw3".into(),
+            from_block: "boundary/mean".into(),
+            from_port: "mean".into(),
+            to_block: "m".into(),
+            to_port: "mean".into(),
+        });
+        assert_eq!(validate(&f, &libs), vec![], "the boundary pin is a copier");
+        // An inner variable on a boundary pin: two variables.
+        let mut f = factor_subsystem(&[]);
+        f.subflows[0].blocks.push(Block {
+            id: "v".into(),
+            kind: "rx/variable".into(),
+            ..Default::default()
+        });
+        f.subflows[0].wires.push(Wire {
+            id: "iw3".into(),
+            from_block: "v".into(),
+            from_port: "x".into(),
+            to_block: "boundary/out".into(),
+            to_port: "out".into(),
+        });
+        let issues = validate(&f, &libs);
+        assert!(
+            issues.iter().any(|i| i.about == "s/iw3"
+                && i.message
+                    .contains("variables connect to factors, not to variables")),
+            "{issues:?}"
+        );
+    }
+
+    #[test]
+    fn a_subsystem_is_never_a_variable_and_its_role_round_trips() {
+        let libs = vec![factor_lib()];
+        let mut f = factor_subsystem(&[]);
+        let json = f.to_json();
+        assert!(json.contains("\"role\": \"factor\""), "{json}");
+        assert_eq!(Flow::parse(&json).unwrap(), f);
+        f.subflows[0].role = Some(Role::Variable);
+        let issues = validate(&f, &libs);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.about == "s" && i.message.contains("never a variable")),
             "{issues:?}"
         );
     }

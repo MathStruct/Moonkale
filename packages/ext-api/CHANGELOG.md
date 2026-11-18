@@ -1,5 +1,11 @@
 # Changelog — the library crates
 
+## ext-api-2026-11-18 — a subsystem as one factor (ADR-0022 stage C, WP-08)
+
+- `flow::Subflow` gains `role: Option<Role>` (defaulted, and omitted from JSON when `None`, so every older file reads and writes unchanged). Full `Subflow { … }` literals must add `role: None`; literals finished with `..Default::default()` keep compiling.
+- `Flow::ports_of` gives a subflow block its subflow's role, so a factor subsystem obeys the bipartite and channel rules outside. `Subflow::boundary_role` is `Variable` for a factor subsystem: `inner_ports` gives its boundary pins that role, so inside, any number of factors attach to a pin and an inner variable on it is refused.
+- `validate` reports a subflow with the role `variable`.
+
 ## Unreleased — live plots (WP-40 PLT-09, 2026-11-18)
 
 - `Changes::seq` is documented as opaque (never 0, not necessarily increasing). SQLite, DuckDB (files and data folders) and Turso now answer `Source::changes_since` at once with a fingerprint of their files instead of `Ok(None)`, so they count as watched.

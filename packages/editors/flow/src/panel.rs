@@ -239,13 +239,16 @@ fn subflow_scene<'a>(
             turn: 0,
             mirror: false,
             caption: None,
+            // A factor subsystem's pin is the outer variable seen from
+            // inside (ADR-0022 stage C): it draws as a variable's circle
+            // and inner factors attach to it.
             resolved: Some(BlockPorts {
                 name: &p.name,
                 inputs: &[],
                 outputs: &[],
                 connections: std::slice::from_ref(p),
                 params: &[],
-                role: None,
+                role: sub.boundary_role(),
                 symbol: None,
                 caption: None,
             }),
@@ -419,6 +422,14 @@ fn document_library(flow: &Flow, libs: &[FlowLibrary]) -> Option<usize> {
             let (lib, _) = b.kind.split_once('/')?;
             libs.iter().position(|l| l.id == lib)
         })
+}
+
+/// The role a new subsystem takes from the palette's library (ADR-0022
+/// stage C): in a factor-graph library (one whose kinds have roles) a
+/// subsystem is one factor; elsewhere it stays outside the rule.
+fn subsystem_role(lib: Option<&FlowLibrary>) -> Option<Role> {
+    lib.is_some_and(|l| l.blocks.iter().any(|k| k.role.is_some()))
+        .then_some(Role::Factor)
 }
 
 /// Where a port sits when no symbol anchors it (ADR-0024): inputs on
@@ -1278,11 +1289,23 @@ pub fn FlowPanel(ws: Workspace, node: CoreNodeId) -> Element {
             .unwrap_or(0);
         let (col, row) = ((placed % 3) as f64, (placed / 3) as f64);
         let suffix = uuid::Uuid::new_v4().simple().to_string()[..6].to_string();
+        // The library the palette shows decides the role, the same
+        // choice the palette itself makes.
+        let role = {
+            let libs = ws.contrib.flow_libraries.read();
+            let current = chosen_lib
+                .peek()
+                .filter(|i| *i < libs.len())
+                .or_else(|| document_library(&flow.read(), &libs))
+                .unwrap_or(0);
+            subsystem_role(libs.get(current))
+        };
         let before = flow.read().to_json();
         flow.with_mut(|f| {
             f.subflows.push(Subflow {
                 id: format!("subflow-{suffix}"),
                 name: format!("Subsystem {}", n + 1),
+                role,
                 ..Default::default()
             });
             let _ = f.with_scope(&open, |blocks, _| {
@@ -2952,5 +2975,138 @@ mod tests {
             ..Default::default()
         }];
         assert_eq!(document_library(&f, &libs), Some(0));
+    }
+
+    /// ADR-0022 stage C: a factor subsystem is one factor outside and
+    /// its boundary pins are variables inside — drawn as circles, taken
+    /// by any number of inner factors; the palette makes one in a
+    /// factor-graph library.
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_factor_subsystem_is_a_factor_outside_and_its_pins_variables_inside() {
+        #[component]
+        fn Host() -> Element {
+            rsx! {}
+        }
+        assert_eq!(subsystem_role(Some(&rx_lib())), Some(Role::Factor));
+        assert_eq!(subsystem_role(Some(&pin_lib())), None);
+        assert_eq!(subsystem_role(None), None);
+        let mut dom = VirtualDom::new(Host);
+        dom.rebuild_in_place();
+        let libs = vec![rx_lib()];
+        let pin = |n: &str| Port {
+            name: n.into(),
+            ty: PortType::Any,
+            required: false,
+        };
+        let mut flow = dom.in_scope(ScopeId::ROOT, || {
+            Signal::new_in_scope(Flow::new(), ScopeId::ROOT)
+        });
+        flow.with_mut(|f| {
+            for (id, kind) in [("x", "rx/variable"), ("y", "rx/variable")] {
+                f.blocks.push(Block {
+                    id: id.into(),
+                    kind: kind.into(),
+                    ..Default::default()
+                });
+            }
+            f.blocks.push(Block {
+                id: "s1".into(),
+                kind: "subflow".into(),
+                subflow: Some("s".into()),
+                ..Default::default()
+            });
+            f.subflows = vec![Subflow {
+                id: "s".into(),
+                name: "Noisy".into(),
+                blocks: ["n", "m"]
+                    .iter()
+                    .map(|id| Block {
+                        id: (*id).into(),
+                        kind: "rx/normal".into(),
+                        ..Default::default()
+                    })
+                    .collect(),
+                connections: vec![pin("out"), pin("mean")],
+                role: Some(Role::Factor),
+                ..Default::default()
+            }];
+        });
+        // Outside: a channel joins one variable.
+        assert!(wire(&mut flow, &[], &libs, &end("s1", "out"), &end("x", "x")).0);
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("y", "x"), &end("s1", "out"));
+        assert!(!ok, "a second variable on a subsystem's channel");
+        assert!(why.contains("not a bus"), "{why}");
+        // Inside: the boundary pin is a variable — two factors take it,
+        // and a factor–factor wire is still refused.
+        let inside = vec!["s".to_string()];
+        assert!(
+            wire(
+                &mut flow,
+                &inside,
+                &libs,
+                &end("n", "mean"),
+                &end("boundary/mean", "mean")
+            )
+            .0
+        );
+        assert!(
+            wire(
+                &mut flow,
+                &inside,
+                &libs,
+                &end("boundary/mean", "mean"),
+                &end("m", "mean")
+            )
+            .0
+        );
+        let (ok, why) = wire(
+            &mut flow,
+            &inside,
+            &libs,
+            &end("n", "out"),
+            &end("m", "out"),
+        );
+        assert!(!ok, "factor – factor inside");
+        assert!(why.contains("factors connect to variables"), "{why}");
+        // An inner variable on a boundary pin: two variables (Mistral's
+        // review 2026-11-18 asked for the gesture's side of the rule).
+        flow.with_mut(|f| {
+            f.subflows[0].blocks.push(Block {
+                id: "v".into(),
+                kind: "rx/variable".into(),
+                ..Default::default()
+            });
+            f.blocks.push(Block {
+                id: "g".into(),
+                kind: "rx/normal".into(),
+                ..Default::default()
+            });
+        });
+        let (ok, why) = wire(
+            &mut flow,
+            &inside,
+            &libs,
+            &end("v", "x"),
+            &end("boundary/out", "out"),
+        );
+        assert!(!ok, "an inner variable on a boundary pin");
+        assert!(why.contains("variables connect to factors"), "{why}");
+        // Outside, the subsystem is a factor: onto another factor, refused.
+        let (ok, why) = wire(&mut flow, &[], &libs, &end("s1", "mean"), &end("g", "mean"));
+        assert!(!ok, "a factor subsystem onto a factor");
+        assert!(why.contains("factors connect to variables"), "{why}");
+        // A role-less subsystem's pins stay outside the rule inside too.
+        let mut plain = flow.read().subflow("s").unwrap().clone();
+        plain.role = None;
+        assert_eq!(plain.boundary_role(), None);
+        let f = flow.read();
+        let scene = subflow_scene(&f, f.subflow("s").unwrap(), &libs, &[]);
+        let node = |id: &str| scene.nodes.iter().find(|n| n.id == id).unwrap();
+        assert_eq!(
+            node("boundary/mean").shape,
+            "circle",
+            "a boundary pin draws as a variable"
+        );
+        assert_eq!(node("n").shape, "rect");
     }
 }

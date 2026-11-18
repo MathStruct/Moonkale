@@ -50,7 +50,7 @@ What that asks of the frontend:
   - constraints and losses.
 
   One graph mixes them (★). Each library contributes kinds (`BlockKind`, roles, symbols) as today.
-- **LT-02 Composition to any depth:** a subsystem is one factor (ADR-0022 stage C), and subsystems nest. Entering one is a scope change (ADR-0021), and its boundary is its interface.
+- **LT-02 Composition to any depth:** a subsystem is one factor (ADR-0022 stage C, built 2026-11-18 for RxInfer: model, panel, flattening codegen), and subsystems nest. Entering one is a scope change (ADR-0021), and its boundary is its interface.
 - **LT-03 Repetition, drawn once (★):** plates, arrays of factors, layers × heads, time slices. The repeated structure is authored and drawn **once, with its multiplicity** (`× 32 layers`, `t = 1…T`), and one instance expands on demand. Never N copies in the document or the scene. This is what makes "huge" tractable.
 - **LT-04 Generated graphs (★):** a graph produced by Julia code (a loop, a model constructor) is viewed, navigated and inspected like an authored one. Editing it means editing the generator or overriding an instance, never silently forking the generated output.
 - **LT-05 Typed variables:**
@@ -108,7 +108,7 @@ What that asks of the frontend:
 ## Order (proposal)
 
 Each step is useful on its own:
-1. ADR-0022 stage C (WP-08).
+1. ADR-0022 stage C (WP-08) — done 2026-11-18.
 2. Plates (LT-03) and typed spaces (LT-05) in the flow model: they decide the document format, so they come before any live work.
 3. `Moonkale.jl` and a live run of an RxInfer model (LT-10, LT-12), drawn on today's engine.
 4. Plots linked to the graph (LT-17).

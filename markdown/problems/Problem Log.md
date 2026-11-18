@@ -343,3 +343,13 @@ grid's first read left grid and plot stale (the grid started from the epoch at
 mount, not at the read), and data epochs bumped for stores, which re-ran their
 tables; Mistral found Turso and DuckDB files untested. All fixed; tests added
 for the second and third.
+
+## P-245 — Factor subsystem review findings (2026-11-18)
+
+**Status:** resolved before merge · [[P-245 Factor subsystem review findings]]
+
+Mistral's two static reviews of WP-08 found that RxInfer codegen let an inner
+variable stand in for a subsystem pin left open outside, dropped a wire to a
+port the block lacks, and accepted Julia keywords as names; both reproduced by a
+failing test, fixed, tests kept. Its test gaps at the panel's wire gesture were
+filled.
